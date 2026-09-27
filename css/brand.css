@@ -1,0 +1,23 @@
+/*
+ * Brand tokens — the ONLY place to touch when aligning with jillianyang.com.
+ * Values are RGB triplets so Tailwind can apply opacity: rgb(var(--brand) / 0.5).
+ * Placeholder palette until the studio site's colours/fonts are supplied.
+ */
+:root {
+  --brand: 43 46 74;          /* deep indigo: headers, primary buttons */
+  --brand-soft: 232 233 242;  /* tinted backgrounds */
+  --brand-ink: 255 255 255;   /* text on brand */
+  --accent: 196 122 66;       /* warm amber: highlights, CTA */
+  --accent-soft: 250 238 226;
+  --surface: 255 255 255;
+  --surface-muted: 247 247 249;
+  --line: 226 228 235;
+  --ink: 28 30 40;
+  --ink-muted: 110 114 130;
+  --ok: 34 139 88;
+  --warn: 214 128 30;
+  --danger: 200 55 55;
+  --font-display: "Cormorant Garamond", "Georgia", serif;
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --radius-card: 14px;
+}

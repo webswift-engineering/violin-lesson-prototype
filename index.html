@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Violin Studio — prototype</title>
+<meta name="description" content="Clickable prototype of the violin studio lesson manager. Fake data only; nothing is saved.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Inter:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="css/brand.css">
+<link rel="stylesheet" href="css/ui.css">
+</head>
+<body data-frame="desktop">
+<div class="proto-bar" id="proto-bar">
+  <span class="b">Prototype</span>
+  <code id="screen-id">teacher/today</code>
+  <span class="sp"></span>
+  <span id="proto-lang-wrap" class="hide">Portal language <select id="proto-lang"><option value="en">English</option><option value="zh">中文</option></select></span>
+  <button id="frame-phone" aria-pressed="false">Phone</button>
+  <button id="frame-desktop" aria-pressed="true">Desktop</button>
+  <button id="proto-role">Switch to parent portal</button>
+  <button id="proto-reset">Reset demo data</button>
+</div>
+<div class="stage"><div class="frame"><div class="app" id="app"></div></div></div>
+<div id="sheet-root"></div>
+<div id="toast-root"></div>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
