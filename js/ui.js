@@ -165,9 +165,37 @@ export function openFindTime(lockStudent, onChanged) {
   });
 }
 
-// ---- heatmap (52 weeks) ----
-export function heatmapHtml(lessons) {
-  const T = today(); const start = weekOf(addDays(T, -363))[0]; const by = {}; for (const l of lessons) by[l.date] = l.status;
-  let out = ""; for (let d = start; d <= T; d = addDays(d, 1)) out += `<i class="${by[d] ? `h-${by[d]}` : ""}" title="${d}${by[d] ? " · " + STATUS_LABEL[by[d]] : ""}"></i>`;
-  return `<div class="heat">${out}</div>`;
+// ---- heatmap (52 weeks, GitHub-style: month labels, hover tooltip, click for the day's detail) ----
+const MON3 = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+export function heatmapHtml(lessons, opts = {}) {
+  const T = today(); const start = weekOf(addDays(T, -363))[0]; const end = weekOf(T)[6];
+  const by = {}; for (const l of lessons) (by[l.date] ??= []).push(l);
+  let cells = "", months = ""; let col = 0, lastMonth = -1;
+  for (let d = start; d <= end; d = addDays(d, 1)) {
+    const dt = parse(d); const future = d > T; const ls = by[d] ?? [];
+    const st = ls.length ? (ls.find((l) => l.status === "completed") ? "completed" : ls.find((l) => l.status === "no_show") ? "no_show" : ls.find((l) => l.status === "scheduled") ? "scheduled" : "cancelled") : "";
+    if (dt.getDay() === 0) { if (dt.getMonth() !== lastMonth && (col === 0 || dt.getDate() <= 7)) { months += `<span style="left:${col * 13}px">${MON3[dt.getMonth()]}</span>`; lastMonth = dt.getMonth(); } col++; }
+    cells += `<button type="button" class="hc ${st ? `h-${st}` : ""} ${future ? "future" : ""}" data-day="${d}" ${ls.length ? `data-n="${ls.length}"` : ""} aria-label="${d}${st ? ", " + STATUS_LABEL[st] : ", no lesson"}" tabindex="${ls.length ? 0 : -1}"></button>`;
+  }
+  return `<div class="heat-wrap" data-heat><div class="heat-months">${months}</div><div class="heat-body"><div class="heat-dow"><span></span><span>Mon</span><span></span><span>Wed</span><span></span><span>Fri</span><span></span></div><div class="heat">${cells}</div></div><div class="heat-legend"><span>Less</span><i></i><i class="h-cancelled"></i><i class="h-no_show"></i><i class="h-completed"></i><span>More</span><span class="muted" style="margin-left:auto">${opts.hint ?? "Hover a day for the date; click to see what happened."}</span></div><div class="heat-tip" hidden></div><div class="heat-detail" hidden></div></div>`;
+}
+/** opts: { lessons, detail(day, lessons) → html, lang } */
+export function mountHeatmap(root, opts) {
+  const wrap = root.querySelector("[data-heat]"); if (!wrap) return;
+  const by = {}; for (const l of opts.lessons) (by[l.date] ??= []).push(l);
+  const tip = wrap.querySelector(".heat-tip"), detail = wrap.querySelector(".heat-detail");
+  const zh = opts.lang === "zh";
+  const label = (d) => { const ls = by[d] ?? []; const date = zh ? fmtDate(d, "zh") : fmtDate(d, "mdy"); if (!ls.length) return `${date} · ${zh ? "没有课" : "no lesson"}`; return `${date} · ${ls.map((l) => `${fmt12(l.time)} ${zh ? ({ scheduled: "已排", completed: "已上", no_show: "缺席", cancelled: "已取消" })[l.status] : STATUS_LABEL[l.status]}`).join(", ")}`; };
+  const show = (cell) => { tip.textContent = label(cell.dataset.day); tip.hidden = false; const r = cell.getBoundingClientRect(), w = wrap.getBoundingClientRect(); tip.style.left = `${Math.max(0, Math.min(r.left - w.left + r.width / 2, w.width - 20))}px`; tip.style.top = `${r.top - w.top - 8}px`; };
+  wrap.querySelectorAll(".hc").forEach((c) => {
+    c.addEventListener("mouseenter", () => show(c)); c.addEventListener("focus", () => show(c));
+    c.addEventListener("mouseleave", () => (tip.hidden = true)); c.addEventListener("blur", () => (tip.hidden = true));
+    c.addEventListener("click", () => { wrap.querySelectorAll(".hc.sel").forEach((x) => x.classList.remove("sel")); c.classList.add("sel"); const d = c.dataset.day; detail.innerHTML = opts.detail ? opts.detail(d, by[d] ?? []) : defaultDetail(d, by[d] ?? [], zh); detail.hidden = false; });
+  });
+  const today_ = wrap.querySelector(`.hc[data-day="${today()}"]`); if (today_) today_.classList.add("is-today");
+}
+export function defaultDetail(d, ls, zh = false, noteHref = (l) => `/lessons/${l.id}/notes`, lessonHref = (l) => `/lessons/${l.id}`) {
+  const date = zh ? fmtDate(d, "zh") : fmtDate(d, "long");
+  if (!ls.length) return `<div class="row between"><b>${date}</b><span class="muted small">${zh ? "这天没有课" : "No lesson this day"}</span></div>`;
+  return `<b>${date}</b><div class="list mt1">${ls.map((l) => { const n = S.notesOf(l.id); return `<div class="li" style="padding-inline:0"><div><div class="small"><a class="med" href="${href(lessonHref(l))}">${fmt12(l.time)}</a> · ${l.durationMin} min · ${loc(l.location)}${l.sessionId ? ` · ${zh ? "课包" : "package"} #${S.session(l.sessionId)?.seq}` : ""}</div>${l.note && l.note !== "Backfilled" ? `<div class="xs muted">${esc(l.note)}</div>` : ""}${n?.status === "final" ? `<div class="xs muted" style="max-width:32rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(n.data.message)}</div>` : ""}</div><div class="row">${n?.status === "final" ? `<a class="chip chip-brand" href="${href(noteHref(l))}">${zh ? "查看笔记" : "notes"}</a>` : ""}${statusChip(l.status)}</div></div>`; }).join("")}</div>`;
 }

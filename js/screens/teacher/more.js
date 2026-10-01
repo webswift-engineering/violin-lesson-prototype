@@ -1,6 +1,7 @@
 import * as S from "../../store.js";
 import { LABS, LOCATION_LABEL } from "../../data.js";
-import { esc, chip, pageHeader, section, coll, empty, field, toast, loc, heatmapHtml, openMoveLesson } from "../../ui.js";
+import { esc, chip, statusChip, pageHeader, section, coll, empty, field, toast, loc, heatmapHtml, mountHeatmap, openMoveLesson } from "../../ui.js";
+import { href as hrefOf } from "../../router.js";
 import { today, addDays, fmt12, fmtDate, money, DOW_LONG } from "../../dates.js";
 import { href } from "../../router.js";
 
@@ -33,7 +34,7 @@ export function reports() {
     ${section("By month", `<div class="card tbl-wrap"><table class="tbl"><thead><tr><th>Month</th><th>Completed</th><th>No-show</th><th>Cancelled</th><th>Revenue</th></tr></thead><tbody>${keys.map((k) => `<tr><td>${k}</td><td>${months[k].completed}</td><td>${months[k].no_show}</td><td>${months[k].cancelled}</td><td>${money(months[k].revenue)}</td></tr>`).join("")}</tbody></table></div>`)}
     ${section("Attendance by student", `<div class="card tbl-wrap"><table class="tbl"><thead><tr><th>Student</th><th>Completed</th><th>No-show</th><th>Cancelled</th><th>Rate</th></tr></thead><tbody>${per.map((r) => `<tr><td><a href="${href(`/students/${r.s.id}`)}">${esc(r.s.name)}</a></td><td>${r.c}</td><td>${r.n}</td><td>${r.x}</td><td>${chip(r.rate >= 90 ? "ok" : "warn", `${r.rate}%`)}</td></tr>`).join("")}</tbody></table></div>`)}
     ${section("Last 52 weeks", `<div class="card p3">${heatmapHtml(past)}</div>`)}`;
-  return { html, mount(root) { root.querySelector("#csv").addEventListener("click", () => toast("Downloads lessons.csv in the live app")); } };
+  return { html, mount(root) { root.querySelector("#csv").addEventListener("click", () => toast("Downloads lessons.csv in the live app")); mountHeatmap(root, { lessons: past, detail: (d, ls) => `<b>${fmtDate(d, "long")}</b>${ls.length ? `<div class="list mt1">${ls.map((l) => `<div class="li" style="padding-inline:0"><span class="small"><a class="med" href="${hrefOf(`/lessons/${l.id}`)}">${esc(S.studentName(l.studentId))}</a> · ${fmt12(l.time)} · ${loc(l.location)}</span>${statusChip(l.status)}</div>`).join("")}</div>` : `<div class="muted small">No lessons this day</div>`}` }); } };
 }
 
 export function settings() {

@@ -1,6 +1,6 @@
 // Lesson records: a student's complete history with a Lifetime / Year to date / Month report.
 import * as S from "../../store.js";
-import { esc, chip, statusChip, pageHeader, section, empty, toast, loc, heatmapHtml, openSheet, closeSheet } from "../../ui.js";
+import { esc, chip, statusChip, pageHeader, section, empty, toast, loc, heatmapHtml, mountHeatmap, openSheet, closeSheet } from "../../ui.js";
 import { today, fmt12, fmtDate, money, parse, pad } from "../../dates.js";
 import { href } from "../../router.js";
 
@@ -45,6 +45,7 @@ export function render(route) {
     ${section("Every lesson", rows.length ? `<div class="card list">${rows.map((l) => { const n = S.notesOf(l.id); return `<div class="li"><div><a class="med" href="${href(`/lessons/${l.id}`)}">${fmtDate(l.date, "mdy")} · ${fmt12(l.time)}</a><div class="xs muted">${l.durationMin} min · ${loc(l.location)}${l.sessionId ? ` · package #${seqOf(l.sessionId)}` : ""}${l.movedFrom ? ` · moved from ${esc(l.movedFrom)}` : ""}${l.note && l.note !== "Backfilled" ? ` · ${esc(l.note)}` : ""}${l.note === "Backfilled" ? " · backfilled" : ""}</div></div><div class="row">${n?.status === "final" ? `<a class="chip chip-brand" href="${href(`/lessons/${l.id}/notes`)}">notes</a>` : ""}${l.status === "cancelled" && l.note === "Paused" ? chip("muted", "Paused") : statusChip(l.status)}</div></div>`; }).join("")}</div>` : empty("No lessons in this period"), `<span class="muted small">${rows.length} in ${range.label.toLowerCase()}</span>`)}
     ${section("Last 52 weeks", `<div class="card p3">${heatmapHtml(all)}</div>`)}`;
   return { html, mount(root) {
+    mountHeatmap(root, { lessons: all });
     root.querySelector("#csv").addEventListener("click", () => { const csv = ["date,time,minutes,location,status,package,fee,moved_from,note", ...rows.map((l) => [l.date, l.time, l.durationMin, l.location, l.status, l.sessionId ? seqOf(l.sessionId) : "", (l.feeCents / 100).toFixed(2), l.movedFrom ?? "", (l.note ?? "").replace(/,/g, " ")].join(","))].join("\n"); openSheet(`${s.name} · ${range.label}.csv`, `<p class="muted small mb2">The live app downloads this file. Prototype shows the text instead.</p><textarea class="input" style="min-height:16rem;font-family:ui-monospace,monospace;font-size:.75rem" readonly>${esc(csv)}</textarea><button class="btn btn-outline w mt2" id="copy">Copy</button>`, (sh) => sh.querySelector("#copy").addEventListener("click", () => { navigator.clipboard?.writeText(csv); toast("Copied"); closeSheet(); })); });
     root.querySelector("#mail").addEventListener("click", () => { const fam = S.family(s.familyId); S.notifyFamily(fam.id, "student_report", `${s.name}: lesson report · ${range.label}`, `${s.name}：课时报告 · ${range.label}`); toast(`Report emailed to ${fam.name}`); });
   } };
