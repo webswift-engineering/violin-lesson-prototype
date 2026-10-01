@@ -30,6 +30,6 @@ js/data.js          sample studio, generated around today's date
 js/store.js         in-memory state and the fake behaviours (attendance, moves, sends, pauses…)
 js/router.js        #/routes that mirror the live app's URLs
 js/ui.js            shared widgets: calendar, sheet, toast, status editor, heatmap
-js/screens/teacher  one file per teacher area
+js/screens/teacher  one file per teacher area (records.js = lesson records with Lifetime / YTD / month report)
 js/screens/parent   the parent portal (English / 中文)
 ```

@@ -1,5 +1,5 @@
 import * as S from "../../store.js";
-import { esc, chip, statusChip, pageHeader, section, coll, empty, field, statusEditorHtml, mountStatusEditor, slotHtml, suggestionList, toast, loc } from "../../ui.js";
+import { esc, chip, statusChip, pageHeader, section, coll, empty, field, statusEditorHtml, mountStatusEditor, slotHtml, suggestionList, toast, loc, openMoveLesson } from "../../ui.js";
 import { today, addDays, fmt12, fmtDate, money, isPast } from "../../dates.js";
 import { href, go } from "../../router.js";
 
@@ -24,7 +24,7 @@ export function detail(route) {
     ${route.query.warning ? `<div class="note note-warn mb3">${esc(route.query.warning)}</div>` : ""}
     <div class="card p4 col">
       <div class="row between small"><a class="brand" href="${href(`/students/${s.id}`)}">Student profile →</a>${chip(bal.tone, bal.text)}</div>
-      ${l.status === "scheduled" ? `<div class="trans"><button class="btn btn-primary" style="flex:1" data-set="completed">Completed</button><button class="btn btn-outline" style="flex:1" data-set="no_show">No-show</button><button class="btn btn-ghost" data-set="cancelled">…</button></div>` : ""}
+      ${l.status === "scheduled" ? `<div class="trans"><button class="btn btn-primary" style="flex:1" data-set="completed">Completed</button><button class="btn btn-outline" style="flex:1" data-set="no_show">No-show</button></div><div class="trans"><button class="btn btn-accent btn-sm" id="move-here">⇄ Move this lesson</button><button class="btn btn-ghost btn-sm" data-set="cancelled">Cancel lesson</button></div>` : ""}
       ${l.status === "completed" || l.status === "no_show" ? `<div class="row wrap"><a class="btn btn-primary btn-sm" href="${href(`/lessons/${l.id}/notes`)}">${n?.status === "final" ? "View notes" : n ? "Continue notes" : "Write notes"}</a>${l.summarySentAt ? `<span class="xs muted">Summary sent ${esc(l.summarySentAt)}</span>` : `<button class="btn btn-outline btn-sm" id="send-sum">Send summary now</button>`}</div>` : ""}
       ${l.status === "cancelled" ? `<p class="small muted">${l.note === "Paused" ? "Paused (skipped during a pause window). " : "Cancelled. "}Not counted against the package.</p>` : ""}
       ${l.note && l.note !== "Paused" ? `<p class="small"><span class="muted">Note: </span>${esc(l.note)}</p>` : ""}
@@ -33,7 +33,7 @@ export function detail(route) {
     <div class="col3 mt4">
       ${coll(`Plan for this lesson · ${l.planned.length}`, `<ul class="list">${l.planned.map((p, i) => `<li class="li" style="padding-inline:0"><span class="small">${esc(p)}</span>${l.status !== "rescheduled" ? `<button class="link xs danger" data-rm-plan="${i}">×</button>` : ""}</li>`).join("") || `<li class="muted small">Nothing planned yet. Finalised notes seed the next lesson's plan.</li>`}</ul>${l.status === "scheduled" ? `<div class="row mt2"><input class="input" id="plan-new" placeholder="Add an item"><button class="btn btn-outline btn-sm" id="plan-add">Add</button></div>` : ""}`, l.status === "scheduled" && l.planned.length > 0)}
       ${l.covered.length ? coll(`Covered · ${l.covered.length}`, `<ul class="small" style="list-style:disc;padding-left:20px">${l.covered.map((c) => `<li>${esc(c)}</li>`).join("")}</ul>`) : ""}
-      ${l.status === "scheduled" && !simple ? coll("Move", `<div class="col"><div class="grid2">${field("Date", `<input class="input" type="date" id="mv-date" value="${l.date}">`)}${field("Time", `<input class="input" type="time" id="mv-time" value="${l.time}">`)}</div><div id="mv-check"></div><details><summary class="xs brand" style="cursor:pointer">Find a time for ${esc(s.name)}</summary><div id="mv-sugg" class="mt2"></div></details><input class="input" id="mv-note" placeholder="Optional note to the parent"><label class="check"><input type="checkbox" id="mv-notify" checked> Email + SMS the parent</label><button class="btn btn-primary w" id="mv-go" disabled>Move lesson</button></div>`) : ""}
+      ${l.status === "scheduled" && !simple ? coll("Move (detailed form)", `<div class="col"><div class="grid2">${field("Date", `<input class="input" type="date" id="mv-date" value="${l.date}">`)}${field("Time", `<input class="input" type="time" id="mv-time" value="${l.time}">`)}</div><div id="mv-check"></div><details><summary class="xs brand" style="cursor:pointer">Find a time for ${esc(s.name)}</summary><div id="mv-sugg" class="mt2"></div></details><input class="input" id="mv-note" placeholder="Optional note to the parent"><label class="check"><input type="checkbox" id="mv-notify" checked> Email + SMS the parent</label><button class="btn btn-primary w" id="mv-go" disabled>Move lesson</button></div>`) : ""}
       ${simple ? coll("More tools", `<p class="muted small">Move, delete and fee live here in the “simpler lesson page” lab.</p>`) : ""}
       ${l.status === "scheduled" ? `<div class="row between small muted"><span>Fee ${money(l.feeCents)}</span><button class="link xs danger" id="del">Delete this scheduled lesson</button></div>` : ""}
     </div>`;
@@ -41,6 +41,7 @@ export function detail(route) {
     const q = (id) => root.querySelector(id);
     root.querySelectorAll("[data-set]").forEach((b) => b.addEventListener("click", () => { const to = b.dataset.set; if (to === "cancelled") { const note = prompt("Cancel this lesson? Optional note to the parent:", ""); if (note === null) return; S.setStatus(l.id, "cancelled", { note }); toast("Cancelled · parent emailed"); return; } S.setStatus(l.id, to); if (to === "completed") go(`/lessons/${l.id}/notes`); }));
     mountStatusEditor(root, l);
+    q("#move-here")?.addEventListener("click", () => openMoveLesson(s, null, l));
     q("#send-sum")?.addEventListener("click", () => { const c = S.sendSummary(l.id); toast(`Summary sent (${c} message${c === 1 ? "" : "s"})`); });
     root.querySelectorAll("[data-rm-plan]").forEach((b) => b.addEventListener("click", () => S.setPlanned(l.id, l.planned.filter((_, i) => i !== Number(b.dataset.rmPlan)))));
     q("#plan-add")?.addEventListener("click", () => { const v = q("#plan-new").value.trim(); if (v) S.setPlanned(l.id, [...l.planned, v]); });

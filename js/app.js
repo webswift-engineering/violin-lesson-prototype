@@ -9,13 +9,14 @@ import * as more from "./screens/teacher/more.js";
 import * as calendar from "./screens/teacher/calendar.js";
 import * as lessons from "./screens/teacher/lessons.js";
 import * as notes from "./screens/teacher/notes.js";
+import * as records from "./screens/teacher/records.js";
 import * as portal from "./screens/parent/portal.js";
 import * as auth from "./screens/auth.js";
 
 const SCREENS = {
   "auth/login": auth.login,
   "teacher/today": today.render,
-  "teacher/students": students.list, "teacher/student": students.detail, "teacher/student-edit": students.edit, "teacher/student-new": students.create,
+  "teacher/students": students.list, "teacher/student": students.detail, "teacher/student-edit": students.edit, "teacher/student-new": students.create, "teacher/records": records.render,
   "teacher/requests": requests.render,
   "teacher/more": more.menu, "teacher/sessions": more.sessions, "teacher/notifications": more.notifications, "teacher/reports": more.reports, "teacher/settings": more.settings,
   "teacher/calendar": calendar.render,

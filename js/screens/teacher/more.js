@@ -1,13 +1,13 @@
 import * as S from "../../store.js";
 import { LABS, LOCATION_LABEL } from "../../data.js";
-import { esc, chip, pageHeader, section, coll, empty, field, toast, loc, heatmapHtml } from "../../ui.js";
+import { esc, chip, pageHeader, section, coll, empty, field, toast, loc, heatmapHtml, openMoveLesson } from "../../ui.js";
 import { today, addDays, fmt12, fmtDate, money, DOW_LONG } from "../../dates.js";
 import { href } from "../../router.js";
 
 const LINKS = [["/calendar", "Calendar", "Month / week view; drag to move, click to edit or add"], ["/lessons", "All lessons", "Upcoming, to mark, summaries to send, past"], ["/sessions", "Packages & payments", "Active packages, unpaid"], ["/reports", "Reports", "Attendance, monthly lessons, revenue, CSV export"], ["/notifications", "Sent emails & SMS", "Outbox, failures, retry"], ["/settings", "Studio settings", "Timezone, reminders, contact, experimental features"]];
 export function menu() {
   const st = S.get().settings;
-  return { html: `${pageHeader("More", { subtitle: esc(st.studioName) })}<div class="card list">${LINKS.map(([h, l, hint]) => `<a class="li" href="${href(h)}"><div><div class="med">${l}</div><div class="small muted">${hint}</div></div><span class="muted">›</span></a>`).join("")}</div><div class="row between mt6 small muted"><span>${esc(st.teacherEmail)}</span><a class="link" href="${href("/login")}">Sign out</a></div><p class="tc xs muted mt8"><a class="brand" href="#">jillianyang.com</a></p>` };
+  return { html: `${pageHeader("More", { subtitle: esc(st.studioName) })}<div class="grid2 mb3"><button class="btn btn-accent" id="more-move">⇄ Move a lesson</button><a class="btn btn-outline" href="${href("/students")}">📋 Lesson records</a></div><div class="card list">${LINKS.map(([h, l, hint]) => `<a class="li" href="${href(h)}"><div><div class="med">${l}</div><div class="small muted">${hint}</div></div><span class="muted">›</span></a>`).join("")}</div><div class="row between mt6 small muted"><span>${esc(st.teacherEmail)}</span><a class="link" href="${href("/login")}">Sign out</a></div><p class="tc xs muted mt8"><a class="brand" href="#">jillianyang.com</a></p>`, mount(root) { root.querySelector("#more-move").addEventListener("click", () => openMoveLesson(null)); } };
 }
 
 export function sessions(route) {

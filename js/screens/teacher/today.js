@@ -1,5 +1,5 @@
 import * as S from "../../store.js";
-import { esc, chip, statusChip, section, empty, calendarHtml, mountCalendar, openLessonSheet, openMoveConfirm, openAddLesson, openFindTime, toast, loc } from "../../ui.js";
+import { esc, chip, statusChip, section, empty, calendarHtml, mountCalendar, openLessonSheet, openMoveConfirm, openAddLesson, openFindTime, openMoveLesson, toast, loc } from "../../ui.js";
 import { today, addDays, fmt12, fmtDate, isPast } from "../../dates.js";
 import { href, go } from "../../router.js";
 
@@ -7,7 +7,7 @@ function lessonCard(l) {
   const st = S.student(l.studentId); const bal = S.balance(st.id); const n = S.notesOf(l.id);
   const overdue = l.status === "scheduled" && isPast(l);
   let acts = "";
-  if (l.status === "scheduled") acts = `<div class="acts"><button class="btn btn-primary" data-set="completed" data-l="${l.id}">Completed</button><button class="btn btn-outline" data-set="no_show" data-l="${l.id}">No-show</button><button class="btn btn-ghost" data-set="cancelled" data-l="${l.id}">…</button></div>`;
+  if (l.status === "scheduled") acts = `<div class="grid2"><button class="btn btn-primary" data-set="completed" data-l="${l.id}">Completed</button><button class="btn btn-outline" data-set="no_show" data-l="${l.id}">No-show</button></div><div class="row"><button class="btn btn-ghost btn-sm" data-move="${l.id}">⇄ Move</button><button class="btn btn-ghost btn-sm" data-set="cancelled" data-l="${l.id}">Cancel</button></div>`;
   else if (l.status === "completed") acts = n?.status === "final" ? `<div class="row"><a class="btn btn-outline btn-sm" href="${href(`/lessons/${l.id}/notes`)}">View notes</a>${l.summarySentAt ? chip("ok", "Summary sent") : ""}</div>` : `<a class="btn btn-accent w" href="${href(`/lessons/${l.id}/notes`)}">✎ Write notes · about 2 min</a>${l.summarySentAt ? "" : `<button class="btn btn-ghost btn-sm" data-send="${l.id}">Send attendance only</button>`}`;
   else if (l.status === "no_show") acts = l.summarySentAt ? chip("ok", "Parent told") : `<button class="btn btn-outline w" data-send="${l.id}">Send attendance</button>`;
   return `<div class="card lcard"><div class="row between"><a class="who" href="${href(`/lessons/${l.id}`)}">${esc(st.name)}</a>${overdue ? chip("warn", "To mark") : statusChip(l.status)}</div><div class="muted small">${fmt12(l.time)} · ${l.durationMin} min · ${loc(l.location)} · ${chip(bal.tone, bal.text)}${l.planned.length ? `<div class="xs mt1">Plan: ${l.planned.map(esc).join(" · ")}</div>` : ""}</div>${acts}</div>`;
@@ -30,6 +30,7 @@ export function render(route) {
       S.setStatus(id, to);
       if (to === "completed") go(`/lessons/${id}/notes`); else toast(`${S.studentName(S.lesson(id).studentId)}: no-show`);
     }));
+    root.querySelectorAll("[data-move]").forEach((b) => b.addEventListener("click", () => { const l = S.lesson(b.dataset.move); openMoveLesson(S.student(l.studentId), null, l); }));
     root.querySelectorAll("[data-send]").forEach((b) => b.addEventListener("click", () => { const n = S.sendSummary(b.dataset.send); toast(`Attendance email sent (${n} message${n === 1 ? "" : "s"})`); }));
     mountCalendar(root, { lessons: weekLessons, onLesson: (l) => openLessonSheet(l), onAdd: (d) => openAddLesson(d, null), onMove: (l, d) => openMoveConfirm(l, d), onFind: () => openFindTime(null) });
   } };

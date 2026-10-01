@@ -6,6 +6,7 @@ const ROUTES = [
   ["teacher/student-new", "/students/new"],
   ["teacher/student", "/students/:id"],
   ["teacher/student-edit", "/students/:id/edit"],
+  ["teacher/records", "/students/:id/records"],
   ["teacher/requests", "/requests"],
   ["teacher/more", "/more"],
   ["teacher/calendar", "/calendar"],
