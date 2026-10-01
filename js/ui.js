@@ -170,11 +170,11 @@ const MON3 = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oc
 export function heatmapHtml(lessons, opts = {}) {
   const T = today(); const start = weekOf(addDays(T, -363))[0]; const end = weekOf(T)[6];
   const by = {}; for (const l of lessons) (by[l.date] ??= []).push(l);
-  let cells = "", months = ""; let col = 0, lastMonth = -1;
+  let cells = "", months = ""; let col = 0, lastMonth = -1, lastLabelCol = -9;
   for (let d = start; d <= end; d = addDays(d, 1)) {
     const dt = parse(d); const future = d > T; const ls = by[d] ?? [];
     const st = ls.length ? (ls.find((l) => l.status === "completed") ? "completed" : ls.find((l) => l.status === "no_show") ? "no_show" : ls.find((l) => l.status === "scheduled") ? "scheduled" : "cancelled") : "";
-    if (dt.getDay() === 0) { if (dt.getMonth() !== lastMonth && (col === 0 || dt.getDate() <= 7)) { months += `<span style="left:${col * 13}px">${MON3[dt.getMonth()]}</span>`; lastMonth = dt.getMonth(); } col++; }
+    if (dt.getDay() === 0) { if (dt.getMonth() !== lastMonth && dt.getDate() <= 7) { if (col - lastLabelCol >= 3) { months += `<span style="left:${col * 13}px">${MON3[dt.getMonth()]}</span>`; lastLabelCol = col; } lastMonth = dt.getMonth(); } col++; }
     cells += `<button type="button" class="hc ${st ? `h-${st}` : ""} ${future ? "future" : ""}" data-day="${d}" ${ls.length ? `data-n="${ls.length}"` : ""} aria-label="${d}${st ? ", " + STATUS_LABEL[st] : ", no lesson"}" tabindex="${ls.length ? 0 : -1}"></button>`;
   }
   return `<div class="heat-wrap" data-heat><div class="heat-months">${months}</div><div class="heat-body"><div class="heat-dow"><span></span><span>Mon</span><span></span><span>Wed</span><span></span><span>Fri</span><span></span></div><div class="heat">${cells}</div></div><div class="heat-legend"><span>Less</span><i></i><i class="h-cancelled"></i><i class="h-no_show"></i><i class="h-completed"></i><span>More</span><span class="muted" style="margin-left:auto">${opts.hint ?? "Hover a day for the date; click to see what happened."}</span></div><div class="heat-tip" hidden></div><div class="heat-detail" hidden></div></div>`;
