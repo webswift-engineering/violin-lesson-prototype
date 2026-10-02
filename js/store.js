@@ -322,7 +322,7 @@ export function addBusy(date, start, end, title) { mutate((s) => s.busy.push({ i
 export function removeBusy(id) { mutate((s) => { s.busy = s.busy.filter((b) => b.id !== id); }); }
 /** Family reports (round 4). A draft comment is kept per student without re-rendering the page while typing. */
 export function saveReportDraft(studentId, text) { (state.reportDrafts ??= {})[studentId] = text; save(); }
-export function publishReport(studentId, period, comment) { return mutate((s) => { const r = { id: uid("rp"), studentId, period, comment: comment ?? "", createdAt: today() }; (s.reports ??= []).push(r); (s.reportDrafts ??= {})[studentId] = comment ?? ""; return r; }); }
+export function publishReport(studentId, period, comment, snapshot = null) { return mutate((s) => { const r = { id: uid("rp"), studentId, period, comment: comment ?? "", createdAt: today(), snapshot }; (s.reports ??= []).push(r); (s.reportDrafts ??= {})[studentId] = comment ?? ""; return r; }); }
 export function setPortal(patch) { mutate((s) => Object.assign(s.portal, patch)); }
 
 // ---------- scheduler (mirror of src/lib/domain/scheduler.ts, simplified) ----------

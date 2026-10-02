@@ -2,6 +2,9 @@
 
 Newest first. Format: date · screen id · what changed · who asked.
 
+- 2026-10-01 · teacher/report, parent/report · a sent report keeps the numbers of the day it was sent; the monthly chart starts at the student's first lesson in the period · owner
+- 2026-10-01 · all · rounds 3 and 4 declared final by the owner; they go to the live app next · owner
+
 - 2026-10-01 · teacher/report, parent/report (new) · family progress report in the family's language: teacher comment, tiles (lessons taken, attendance, pieces completed, practice min/day), lessons each month (completed / absent hatched / cancelled outline, hover + table), 52-week heatmap, repertoire timeline, this week's practice, package; teacher previews it, then Send link / Copy for WeChat / Save as PDF; parents find sent reports on their student page. Entry: Lesson records → "Report for the family", student page → More · teacher
 - 2026-10-01 · fixes · heatmaps open on the latest weeks with weekday labels and legend kept in view · review
 
