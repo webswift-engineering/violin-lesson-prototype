@@ -234,6 +234,7 @@ export function mountHeatmap(root, opts) {
     c.addEventListener("click", () => { wrap.querySelectorAll(".hc.sel").forEach((x) => x.classList.remove("sel")); c.classList.add("sel"); const d = c.dataset.day; detail.innerHTML = opts.detail ? opts.detail(d, by[d] ?? []) : defaultDetail(d, by[d] ?? [], zh); detail.hidden = false; });
   });
   const today_ = wrap.querySelector(`.hc[data-day="${today()}"]`); if (today_) today_.classList.add("is-today");
+  wrap.scrollLeft = wrap.scrollWidth; // open on the latest weeks (narrow screens scroll back in time)
 }
 export function defaultDetail(d, ls, zh = false, noteHref = (l) => `/lessons/${l.id}/notes`, lessonHref = (l) => `/lessons/${l.id}`) {
   const date = zh ? fmtDate(d, "zh") : fmtDate(d, "long");

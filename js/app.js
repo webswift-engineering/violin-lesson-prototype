@@ -12,17 +12,18 @@ import * as notes from "./screens/teacher/notes.js";
 import * as records from "./screens/teacher/records.js";
 import * as portal from "./screens/parent/portal.js";
 import * as auth from "./screens/auth.js";
+import * as report from "./screens/report.js";
 
 const SCREENS = {
   "auth/login": auth.login,
   "teacher/today": today.render,
-  "teacher/students": students.list, "teacher/student": students.detail, "teacher/student-edit": students.edit, "teacher/student-new": students.create, "teacher/records": records.render,
+  "teacher/students": students.list, "teacher/student": students.detail, "teacher/student-edit": students.edit, "teacher/student-new": students.create, "teacher/records": records.render, "teacher/report": report.teacher,
   "teacher/requests": requests.render,
   "teacher/more": more.menu, "teacher/sessions": more.sessions, "teacher/notifications": more.notifications, "teacher/reports": more.reports, "teacher/settings": more.settings,
   "teacher/calendar": calendar.render,
   "teacher/lessons": lessons.list, "teacher/lesson": lessons.detail,
   "teacher/notes": notes.render,
-  "parent/home": portal.home, "parent/student": portal.student, "parent/pause": portal.pause, "parent/package": portal.pkg, "parent/note": portal.note, "parent/reschedule": portal.reschedule, "parent/requests": portal.requests,
+  "parent/home": portal.home, "parent/student": portal.student, "parent/pause": portal.pause, "parent/package": portal.pkg, "parent/note": portal.note, "parent/reschedule": portal.reschedule, "parent/requests": portal.requests, "parent/report": report.parent,
 };
 
 const NAV = [["/today", "Today", "◉"], ["/students", "Students", "♪"], ["/requests", "Requests", "⇄"], ["/more", "More", "⋯"]];

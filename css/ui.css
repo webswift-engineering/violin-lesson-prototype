@@ -239,3 +239,54 @@ body[data-frame="phone"] .sticky-foot { bottom: 3.6rem; z-index: 31; }
 .input-sm { min-height: 32px; padding: 4px 8px; width: auto; flex: none !important; }
 .sticky-foot.grid2 { display: grid; }
 .list button.li[disabled] { opacity: .45; cursor: default; }
+
+/* ---- family report (round 4) ---- */
+.report h1 { font-size: 1.5rem; margin-top: 2px; }
+.report h2 { font-size: 1.1rem; margin-bottom: 2px; }
+.r-sec { border-top: 1px solid rgb(var(--line)); padding-top: 14px; margin-top: 14px; }
+.r-head { margin-bottom: 4px; }
+.grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+@media (max-width: 520px) { .grid4 { grid-template-columns: 1fr 1fr; } }
+body[data-frame="phone"] .grid4 { grid-template-columns: 1fr 1fr; }
+.chart .legend, .report .legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: .75rem; color: rgb(var(--ink-muted)); margin: 6px 0; }
+.swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; }
+.chart-box { position: relative; }
+.chart-box svg { display: block; overflow: visible; max-width: 100%; }
+.chart-box .grid { stroke: rgb(var(--line)); stroke-width: 1; }
+.chart-box .tick { font-size: 11px; fill: rgb(var(--ink-muted)); font-family: var(--font-sans); }
+.c-done { fill: rgb(var(--ok)); background: rgb(var(--ok)); }
+.c-absent { fill: url(#hatch); background: repeating-linear-gradient(45deg, rgb(var(--warn)) 0 2px, rgb(var(--warn) / .45) 2px 4px); }
+.hatch-bg { fill: rgb(var(--warn) / .55); } .hatch-line { stroke: rgb(var(--warn)); stroke-width: 3; }
+.c-cx { fill: rgb(var(--surface)); stroke: rgb(var(--ink-muted)); stroke-width: 1.5; background: rgb(var(--surface)); box-shadow: inset 0 0 0 1.5px rgb(var(--ink-muted)); }
+.chart-box .hit { fill: transparent; cursor: pointer; }
+.chart-box .hit.on { fill: rgb(var(--ink) / .05); }
+.chart-tip { position: absolute; top: 0; transform: translate(-50%, -100%); background: rgb(var(--ink)); color: rgb(var(--surface)); font-size: .72rem; padding: 5px 8px; border-radius: 6px; white-space: nowrap; pointer-events: none; z-index: 5; }
+.gantt { display: flex; flex-direction: column; gap: 8px; }
+.g-row { display: grid; grid-template-columns: minmax(7rem, 38%) 1fr; gap: 10px; align-items: center; }
+.g-track { position: relative; height: 12px; background: rgb(var(--surface-muted)); border-radius: 6px; }
+.g-track i { position: absolute; top: 0; bottom: 0; border-radius: 6px; }
+.r-done { background: rgb(var(--brand)); }
+.r-learn { background: rgb(var(--brand) / .35); box-shadow: inset 0 0 0 1.5px rgb(var(--brand)); }
+.g-axis { display: flex; justify-content: space-between; margin-left: calc(38% + 10px); margin-top: 4px; }
+.hbars { display: flex; flex-direction: column; gap: 10px; }
+.hb-row { display: grid; grid-template-columns: minmax(7rem, 45%) 1fr; gap: 10px; align-items: center; }
+.hb-track { display: flex; align-items: center; gap: 8px; }
+.hb-track i { display: block; height: 14px; max-width: 75%; background: rgb(var(--accent)); border-radius: 0 4px 4px 0; }
+@media print {
+  .proto-bar, .topnav, .bottomnav, .attn, .sticky-foot, .no-print, #rp-body ~ p, .page-h, .card.p3.col.mb3, details summary { display: none !important; }
+  .stage { padding: 0; } .frame, body[data-frame="phone"] .frame { width: auto !important; height: auto !important; border: 0 !important; overflow: visible !important; max-width: none; }
+  details { display: block; } details > * { display: block; }
+  .card { border: 0; box-shadow: none; padding: 0 !important; }
+  .r-sec { break-inside: avoid; }
+  body { background: #fff; }
+}
+.report .legend .lg { display: inline-flex; align-items: center; gap: 6px; }
+.report .legend .swatch { flex: none; margin: 0; }
+.hb-track span { white-space: nowrap; }
+.hb-track i { max-width: 60%; }
+.sticky-foot.grid3 { grid-template-columns: repeat(3, 1fr) !important; }
+.sticky-foot.grid3 .btn { padding-inline: 6px; font-size: .85rem; }
+/* heatmap opens on the latest weeks: keep weekday labels and the legend in view while it scrolls */
+.heat-dow { position: sticky; left: 0; z-index: 2; background: rgb(var(--surface)); }
+.heat-legend, .heat-detail { position: sticky; left: 0; }
+.heat-body { width: max-content; } .heat-dow { flex: none; }

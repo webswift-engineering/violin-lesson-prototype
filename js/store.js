@@ -10,7 +10,7 @@ export const uid = (p = "x") => `${p}${++counter}`;
 
 /** Ids are "<prefix><n>". After a refresh the counter must start above every id already saved, or new rows collide. */
 function syncCounter(s) {
-  for (const k of ["families", "parents", "students", "lessons", "sessions", "repertoire", "requests", "pauses", "notifications", "busy"]) {
+  for (const k of ["families", "parents", "students", "lessons", "sessions", "repertoire", "requests", "pauses", "notifications", "busy", "reports"]) {
     for (const row of s[k] ?? []) { const m = /^[a-z]+(\d+)$/.exec(row.id ?? ""); if (m) counter = Math.max(counter, Number(m[1])); }
   }
 }
@@ -320,6 +320,9 @@ export function addOverride(day, location) { mutate((s) => { s.dayOverrides = s.
 export function removeOverride(day) { mutate((s) => { s.dayOverrides = s.dayOverrides.filter((o) => o.day !== day); }); }
 export function addBusy(date, start, end, title) { mutate((s) => s.busy.push({ id: uid("u"), date, start, end, title })); }
 export function removeBusy(id) { mutate((s) => { s.busy = s.busy.filter((b) => b.id !== id); }); }
+/** Family reports (round 4). A draft comment is kept per student without re-rendering the page while typing. */
+export function saveReportDraft(studentId, text) { (state.reportDrafts ??= {})[studentId] = text; save(); }
+export function publishReport(studentId, period, comment) { return mutate((s) => { const r = { id: uid("rp"), studentId, period, comment: comment ?? "", createdAt: today() }; (s.reports ??= []).push(r); (s.reportDrafts ??= {})[studentId] = comment ?? ""; return r; }); }
 export function setPortal(patch) { mutate((s) => Object.assign(s.portal, patch)); }
 
 // ---------- scheduler (mirror of src/lib/domain/scheduler.ts, simplified) ----------

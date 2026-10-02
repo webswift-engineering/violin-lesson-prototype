@@ -72,6 +72,7 @@ export function detail(route) {
 function openMoreActions(s, fam, parents, active) {
   const T = today();
   const items = [
+    ["report", "Report for the family", "Charts of lessons, attendance, pieces and practice, in their language"],
     ["gen", "Generate lessons from the weekly slot", s.weekday === null ? "Set a weekly day and time first (Edit)" : `${DOW_LONG[s.weekday]}s ${fmt12(s.time)}`],
     ["pause", "Pause lessons", "Skip a few weeks and add them back at the end"],
     ["backfill", "Record a past lesson", "From before this app; no emails"],
@@ -84,6 +85,7 @@ function openMoreActions(s, fam, parents, active) {
     if (k === "pause") openSheet("Pause lessons", `<p class="muted small mb2">Lessons in the window are cancelled without using the package, and the same number is added after the current schedule.</p><div class="grid2">${field("From", `<input class="input" type="date" id="pz-from" value="${addDays(T, 7)}">`)}${field("To", `<input class="input" type="date" id="pz-to" value="${addDays(T, 20)}">`)}</div><div id="pz-preview" class="small muted mt2"></div><button class="btn btn-primary w mt2" id="pz-go">Pause</button>`, (r) => { const q = (id) => r.querySelector(id); const pz = () => { const ls = S.pausePreview(s.id, q("#pz-from").value, q("#pz-to").value); q("#pz-preview").textContent = ls.length ? `${ls.length} lesson${ls.length === 1 ? "" : "s"} skipped and added back: ${ls.map((l) => fmtDate(l.date, "md")).join(", ")}` : "No lessons fall in this window."; }; q("#pz-from").addEventListener("input", pz); q("#pz-to").addEventListener("input", pz); pz(); q("#pz-go").addEventListener("click", () => { const res = S.applyPause(s.id, q("#pz-from").value, q("#pz-to").value); toast(`Paused: ${res.cancelled} skipped, ${res.created} added · family emailed`); }); });
     if (k === "backfill") openSheet("Record a past lesson", `<p class="muted small mb2">For a lesson before this app. No emails are sent.</p><div class="grid2">${field("Date", `<input class="input" type="date" id="bf-date" value="${addDays(T, -10)}" max="${T}">`)}${field("Time", `<input class="input" type="time" id="bf-time" value="${s.time ?? "16:00"}">`)}</div>${field("Status", `<select class="input" id="bf-status"><option value="completed">Completed</option><option value="no_show">No-show</option><option value="cancelled">Cancelled</option></select>`)}<button class="btn btn-primary w mt2" id="bf-go">Record</button>`, (r) => r.querySelector("#bf-go").addEventListener("click", () => { S.backfill(s.id, r.querySelector("#bf-date").value, r.querySelector("#bf-time").value, r.querySelector("#bf-status").value); toast("Recorded (no emails)"); }));
     if (k === "schedule") { closeSheet(); S.notifyFamily(fam.id, "schedule_published", `${s.name}'s lesson schedule — package #${active.seq}`, `${s.name} 的课程安排 — 第 ${active.seq} 期课包`, null, true); toast(`Schedule emailed${fam.smsOptIn ? " + SMS" : ""} to ${fam.name}`); }
+    if (k === "report") { closeSheet(); go(`/students/${s.id}/report`); }
     if (k === "mail") { closeSheet(); window.open?.(`mailto:${parents[0]?.email}`); toast(`Opens your mail app to ${parents[0]?.email}`); }
   })));
 }

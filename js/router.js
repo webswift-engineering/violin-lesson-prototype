@@ -7,6 +7,7 @@ const ROUTES = [
   ["teacher/student", "/students/:id"],
   ["teacher/student-edit", "/students/:id/edit"],
   ["teacher/records", "/students/:id/records"],
+  ["teacher/report", "/students/:id/report"],
   ["teacher/requests", "/requests"],
   ["teacher/more", "/more"],
   ["teacher/calendar", "/calendar"],
@@ -24,6 +25,7 @@ const ROUTES = [
   ["parent/note", "/portal/notes/:id"],
   ["parent/reschedule", "/portal/lessons/:id/reschedule"],
   ["parent/requests", "/portal/requests"],
+  ["parent/report", "/portal/reports/:id"],
 ];
 
 export function current() {

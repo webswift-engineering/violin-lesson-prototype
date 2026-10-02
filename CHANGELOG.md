@@ -2,6 +2,9 @@
 
 Newest first. Format: date · screen id · what changed · who asked.
 
+- 2026-10-01 · teacher/report, parent/report (new) · family progress report in the family's language: teacher comment, tiles (lessons taken, attendance, pieces completed, practice min/day), lessons each month (completed / absent hatched / cancelled outline, hover + table), 52-week heatmap, repertoire timeline, this week's practice, package; teacher previews it, then Send link / Copy for WeChat / Save as PDF; parents find sent reports on their student page. Entry: Lesson records → "Report for the family", student page → More · teacher
+- 2026-10-01 · fixes · heatmaps open on the latest weeks with weekday labels and legend kept in view · review
+
 - 2026-10-01 · teacher/student · simpler page: summary card, two big buttons, calendar, then one tab row (Packages · Repertoire · Family); generate / pause / record a past lesson / send schedule / email parent moved behind "⋯ More"; past lessons now live only in Lesson records · owner
 - 2026-10-01 · all parent messages · owner decisions: the post-lesson email and every reschedule reply (teacher move, approve, propose another time, decline) open as an editable draft first: Send, Copy for WeChat, or Don't send. The renewal reminder (2 lessons left) is sent automatically, once per package, and now actually fires in the prototype · owner
 - 2026-10-01 · teacher/notes · the draft only reuses what the teacher typed and last lesson's plan (no invented praise or pieces), says what it copied, shows the package in the family's language, progress steps without vendor names, Copy for WeChat; a draft no longer carries over to another student · review
