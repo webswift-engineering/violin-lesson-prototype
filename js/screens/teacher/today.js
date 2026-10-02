@@ -1,5 +1,5 @@
 import * as S from "../../store.js";
-import { esc, chip, statusChip, section, empty, calendarHtml, mountCalendar, openLessonSheet, openMoveConfirm, openAddLesson, openFindTime, openMoveLesson, toast, loc } from "../../ui.js";
+import { esc, chip, statusChip, section, empty, calendarHtml, mountCalendar, openLessonSheet, openMoveConfirm, openAddLesson, openFindTime, openMoveLesson, openAttendanceReview, toast, loc } from "../../ui.js";
 import { today, addDays, fmt12, fmtDate, isPast } from "../../dates.js";
 import { href, go } from "../../router.js";
 
@@ -31,7 +31,7 @@ export function render(route) {
       if (to === "completed") go(`/lessons/${id}/notes`); else toast(`${S.studentName(S.lesson(id).studentId)}: no-show`);
     }));
     root.querySelectorAll("[data-move]").forEach((b) => b.addEventListener("click", () => { const l = S.lesson(b.dataset.move); openMoveLesson(S.student(l.studentId), null, l); }));
-    root.querySelectorAll("[data-send]").forEach((b) => b.addEventListener("click", () => { const n = S.sendSummary(b.dataset.send); toast(`Attendance email sent (${n} message${n === 1 ? "" : "s"})`); }));
+    root.querySelectorAll("[data-send]").forEach((b) => b.addEventListener("click", () => openAttendanceReview(b.dataset.send)));
     mountCalendar(root, { lessons: weekLessons, onLesson: (l) => openLessonSheet(l), onAdd: (d) => openAddLesson(d, null), onMove: (l, d) => openMoveConfirm(l, d), onFind: () => openFindTime(null) });
   } };
 }

@@ -43,8 +43,8 @@ function teacherShell(route, inner) {
   return `${nav("topnav desk-only")}${chips.length ? `<div class="attn">${chips.map(([h, t, tone]) => `<a class="chip chip-${tone}" href="${R.href(h)}">${esc(t)}</a>`).join("")}</div>` : ""}<main class="main">${inner}</main>${nav("bottomnav phone-only")}`;
 }
 function parentShell(route, inner) {
-  const st = S.get(); const fam = S.family(st.portal.familyId); const p = S.parentsOf(fam.id)[0]; const zh = st.portal.lang === "zh";
-  return `<header class="topnav"><div class="main" style="display:flex;justify-content:space-between;align-items:center;padding-block:10px"><a href="${R.href("/portal")}"><div class="b">${esc(st.settings.studioName)}</div><div class="xs muted">${zh ? "家长门户" : "Student portal"} · ${esc(p.name)}</div></a><a class="xs muted" href="${R.href("/login")}">${zh ? "退出登录" : "Sign out"}</a></div></header><main class="main">${inner}</main><p class="tc xs muted" style="padding-bottom:16px"><a class="brand" href="#">jillianyang.com</a></p>`;
+  const st = S.get(); const fam = S.family(st.portal.familyId) ?? st.families[0]; const p = S.parentsOf(fam?.id)[0] ?? { name: "" }; const zh = st.portal.lang === "zh";
+  return `<header class="topnav"><div class="main" style="display:flex;justify-content:space-between;align-items:center;padding-block:10px"><a href="${R.href("/portal")}"><div class="b">${esc(st.settings.studioName)}</div><div class="xs muted">${zh ? "家长门户" : "Student portal"} · ${esc(p.name)}</div></a><a class="xs muted" href="${R.href("/login")}">${zh ? "退出登录" : "Sign out"}</a></div></header><main class="main">${inner}</main><p class="tc xs muted" style="padding-bottom:16px"><a class="brand" href="${esc(st.settings.websiteUrl)}" target="_blank" rel="noopener">${esc(st.settings.websiteUrl.replace(/^https?:\/\/(www\.)?/, ""))}</a></p>`;
 }
 
 export function render() {

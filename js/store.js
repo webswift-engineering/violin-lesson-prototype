@@ -1,6 +1,6 @@
 // In-memory state + the fake behaviours. Persists to sessionStorage only (this tab); Reset restores the seed.
 import { seed } from "./data.js";
-import { today, addDays, weekday, isPast, cmp, minutes, endTime } from "./dates.js";
+import { today, addDays, weekday, isPast, cmp, minutes, endTime, nowTime, fmtDateTime } from "./dates.js";
 
 const KEY = "violin-proto-v1";
 let state;
@@ -8,45 +8,72 @@ let listeners = [];
 let counter = 1000;
 export const uid = (p = "x") => `${p}${++counter}`;
 
+/** Ids are "<prefix><n>". After a refresh the counter must start above every id already saved, or new rows collide. */
+function syncCounter(s) {
+  for (const k of ["families", "parents", "students", "lessons", "sessions", "repertoire", "requests", "pauses", "notifications", "busy"]) {
+    for (const row of s[k] ?? []) { const m = /^[a-z]+(\d+)$/.exec(row.id ?? ""); if (m) counter = Math.max(counter, Number(m[1])); }
+  }
+}
+function fresh(s) { syncCounter(s); recompute(s); lowBalance(s, true); return s; }
 function load() {
-  try { const raw = sessionStorage.getItem(KEY); if (raw) { const s = JSON.parse(raw); if (s && s.lessons) return recompute(s); } } catch { /* ignore */ }
-  return recompute(seed());
+  try { const raw = sessionStorage.getItem(KEY); if (raw) { const s = JSON.parse(raw); if (s && s.lessons) return fresh(s); } } catch { /* ignore */ }
+  return fresh(seed());
 }
 function save() { try { sessionStorage.setItem(KEY, JSON.stringify(state)); } catch { /* ignore */ } }
 export const get = () => state;
-export function reset() { state = recompute(seed()); save(); emit(); }
+export function reset() { state = fresh(seed()); save(); emit(); }
 export function onChange(fn) { listeners.push(fn); }
 function emit() { for (const fn of listeners) fn(); }
-export function mutate(fn) { const r = fn(state); recompute(state); save(); emit(); return r; }
+export function mutate(fn) { const r = fn(state); recompute(state); lowBalance(state, false); save(); emit(); return r; }
 
 // ---------- derived ----------
 function CONSUMES(s) { return s === "completed" || s === "no_show"; }
 export const consumes = CONSUMES;
 
-/** Assign lessons to packages chronologically (like the SQL: earliest first, up to the package's capacity). */
+/**
+ * Package assignment, like the SQL: a lesson keeps the package it was given (so a moved lesson stays in its
+ * package); lessons without one fill the earliest package with room. Cancelled and moved-away lessons free their slot.
+ */
 export function recompute(s) {
   for (const st of s.students) {
     const sessions = s.sessions.filter((x) => x.studentId === st.id).sort((a, b) => a.seq - b.seq);
-    const ls = s.lessons.filter((l) => l.studentId === st.id && l.status !== "cancelled" && l.status !== "rescheduled").sort(cmp);
-    for (const l of s.lessons.filter((l) => l.studentId === st.id)) l.sessionId = null;
-    let i = 0;
+    const ids = new Set(sessions.map((b) => b.id));
+    const mine = s.lessons.filter((l) => l.studentId === st.id);
+    const live = mine.filter((l) => l.status !== "cancelled" && l.status !== "rescheduled").sort(cmp);
+    for (const l of mine) if (!live.includes(l) || !ids.has(l.sessionId)) l.sessionId = null;
+    const count = Object.fromEntries(sessions.map((b) => [b.id, 0]));
+    for (const l of live) if (l.sessionId) { const b = sessions.find((x) => x.id === l.sessionId); if (count[b.id] < b.total) count[b.id]++; else l.sessionId = null; }
+    for (const l of live) if (!l.sessionId) { const b = sessions.find((x) => count[x.id] < x.total); if (!b) break; l.sessionId = b.id; count[b.id]++; }
     for (const b of sessions) {
-      let count = 0;
-      b.used = 0;
-      while (i < ls.length && count < b.total) { ls[i].sessionId = b.id; if (CONSUMES(ls[i].status)) b.used++; count++; i++; }
+      b.used = live.filter((l) => l.sessionId === b.id && CONSUMES(l.status)).length;
       b.status = b.used >= b.total ? "completed" : "active";
       if (b.status === "completed" && !b.completedAt) b.completedAt = today();
       if (b.status === "active") b.completedAt = null;
     }
+    // Undo of the lesson that closed a package: the successor it auto-opened goes away again while nothing touched it
+    const extra = sessions.find((b) => b.auto && !b.paid && b.used === 0 && sessions.some((a) => a.seq < b.seq && a.status === "active"));
+    if (extra) { s.sessions = s.sessions.filter((b) => b !== extra); for (const l of mine) if (l.sessionId === extra.id) l.sessionId = null; return recompute(s); }
     // Everything consumed and lessons still waiting → auto-open the next package
     const active = sessions.find((b) => b.status === "active");
-    if (!active && st.autoCreate && (i < ls.length || sessions.length === 0 && ls.length)) {
+    if (!active && st.autoCreate && live.some((l) => !l.sessionId)) {
       const last = sessions[sessions.length - 1];
-      s.sessions.push({ id: uid("b"), studentId: st.id, seq: (last?.seq ?? 0) + 1, total: 10, priceCents: st.rateCents * 10, paid: false, paidAt: null, startedAt: today(), parentSummary: null, used: 0, status: "active" });
+      s.sessions.push({ id: uid("b"), studentId: st.id, seq: (last?.seq ?? 0) + 1, total: 10, priceCents: st.rateCents * 10, paid: false, paidAt: null, startedAt: today(), parentSummary: null, used: 0, status: "active", auto: true });
       return recompute(s);
     }
   }
   return s;
+}
+
+/** R6: the renewal reminder goes out automatically (owner decision 2026-10-01) once per package when 2 lessons are left. */
+function lowBalance(s, silent) {
+  for (const b of s.sessions) {
+    const left = b.total - b.used;
+    if (b.status !== "active" || b.used === 0 || left > s.settings.lowBalanceThreshold || b.lowNotifiedAt) continue;
+    b.lowNotifiedAt = today();
+    if (silent) continue;
+    const st = s.students.find((x) => x.id === b.studentId); if (!st) continue;
+    notifyFamily(st.familyId, "session_low_balance", `${st.name}: ${left} lesson${left === 1 ? "" : "s"} left in package #${b.seq}`, `${st.name}：本期课包还剩 ${left} 节`, null, false, "auto");
+  }
 }
 
 export const student = (id) => state.students.find((s) => s.id === id);
@@ -87,14 +114,28 @@ export function queue(msg) {
   state.notifications.unshift(row);
   return row;
 }
-export function notifyFamily(familyId, event, subjectEn, subjectZh, lessonId = null, sms = false) {
+export function notifyFamily(familyId, event, subjectEn, subjectZh, lessonId = null, sms = false, how = "auto") {
   const fam = family(familyId); if (!fam) return 0;
+  const subject = fam.language === "zh" ? subjectZh : subjectEn;
   let count = 0;
   for (const p of parentsOf(familyId)) {
-    queue({ event, channel: "email", recipient: p.email, subject: fam.language === "zh" ? subjectZh : subjectEn, lessonId, familyId, language: fam.language }); count++;
-    if (sms && fam.smsOptIn && p.phone) { queue({ event, channel: "sms", recipient: p.phone, subject: null, body: fam.language === "zh" ? subjectZh : subjectEn, lessonId, familyId, language: fam.language }); count++; }
+    queue({ event, channel: "email", recipient: p.email, subject, lessonId, familyId, language: fam.language, how }); count++;
+    if (sms && fam.smsOptIn && p.phone) { queue({ event, channel: "sms", recipient: p.phone, subject: null, body: subject, lessonId, familyId, language: fam.language, how }); count++; }
   }
   return count;
+}
+/** A message the teacher reviewed: sent by email (+ SMS when the family opted in), or copied for WeChat. */
+export function sendReviewed(familyId, event, { subject, text, lessonId = null, sms = false, wechat = false }) {
+  return mutate((s) => {
+    const fam = family(familyId); if (!fam) return 0;
+    if (wechat) { queue({ event, channel: "wechat", recipient: fam.name, subject, body: text, status: "copied", lessonId, familyId, language: fam.language, how: "reviewed" }); return 1; }
+    let n = 0;
+    for (const p of parentsOf(familyId)) {
+      queue({ event, channel: "email", recipient: p.email, subject, body: text, lessonId, familyId, language: fam.language, how: "reviewed" }); n++;
+      if (sms && fam.smsOptIn && p.phone) { queue({ event, channel: "sms", recipient: p.phone, subject: null, body: text, lessonId, familyId, language: fam.language, how: "reviewed" }); n++; }
+    }
+    return n;
+  });
 }
 
 // ---------- lessons ----------
@@ -113,15 +154,12 @@ export function setStatus(lessonId, status, opts = {}) {
     return prev;
   });
 }
-export function moveLesson(lessonId, date, time, notify, note) {
+/** Moves the lesson (it keeps its package). Telling the parent is a separate, reviewed step (draft("moved", …)). */
+export function moveLesson(lessonId, date, time) {
   return mutate((s) => {
     const l = s.lessons.find((x) => x.id === lessonId);
-    const nl = { ...l, id: uid("l"), date, time, status: "scheduled", movedFrom: `${l.date} ${l.time}`, planned: l.planned, covered: [] };
-    l.status = "rescheduled"; l.movedTo = nl.id;
-    s.lessons.push(nl);
-    const st = student(l.studentId);
-    if (notify) notifyFamily(st.familyId, "lesson_moved", `${st.name}'s lesson moved to ${date}`, `${st.name} 的课改到 ${date}`, nl.id, true);
-    return nl;
+    if (!l || l.status !== "scheduled") return { error: "This lesson is no longer scheduled." };
+    return moveLessonInline(s, l, date, time);
   });
 }
 export function addLesson(studentId, date, time, durationMin, location) {
@@ -140,21 +178,21 @@ export function generateLessons(studentId, count, from, notify) {
     return made;
   });
 }
-export function sendSummary(lessonId) {
-  return mutate((s) => {
-    const l = s.lessons.find((x) => x.id === lessonId); const st = student(l.studentId);
-    const n = notifyFamily(st.familyId, "lesson_completed", `${st.name}'s lesson · ${l.date}`, `课堂总结：${st.name} ${l.date}`, l.id);
-    l.summarySentAt = `${today()} ${new Date().toTimeString().slice(0, 5)}`;
-    return n;
-  });
+/** The post-lesson email without notes, after the teacher reviewed it (owner decision 2026-10-01: reviewed, not automatic). */
+export function sendSummary(lessonId, { text, wechat = false } = {}) {
+  const l = lesson(lessonId); const st = student(l.studentId); const d = draft("attendance", { lesson: l });
+  const n = sendReviewed(st.familyId, "lesson_completed", { subject: d.subject, text: text ?? d.text, lessonId, wechat });
+  mutate(() => { l.summarySentAt = `${today()} ${nowTime()}`; });
+  return n;
 }
 export function saveNotes(lessonId, patch) { mutate((s) => { const n = s.notes[lessonId] ?? { status: "draft", transcript: null, bullets: "", data: null, finalizedAt: null, sentAt: null }; Object.assign(n, patch); s.notes[lessonId] = n; }); }
-export function sendNotes(lessonId) {
+export function sendNotes(lessonId, { wechat = false } = {}) {
   return mutate((s) => {
     const l = s.lessons.find((x) => x.id === lessonId); const st = student(l.studentId); const n = s.notes[lessonId];
-    n.status = "final"; n.finalizedAt = today(); n.sentAt = `${today()} ${new Date().toTimeString().slice(0, 5)}`;
+    n.status = "final"; n.finalizedAt = today(); n.sentAt = `${today()} ${nowTime()}${wechat ? " (WeChat)" : ""}`;
     const first = !l.summarySentAt;
-    notifyFamily(st.familyId, first ? "lesson_completed" : "lesson_notes", first ? `${st.name}'s lesson · ${l.date}` : `Notes: ${st.name}'s lesson ${l.date}`, first ? `课堂总结：${st.name} ${l.date}` : `课堂笔记：${st.name} ${l.date}`, l.id);
+    if (wechat) queue({ event: first ? "lesson_completed" : "lesson_notes", channel: "wechat", recipient: family(st.familyId).name, subject: `${st.name} · ${l.date}`, body: n.data.message, status: "copied", lessonId, familyId: st.familyId, language: family(st.familyId).language, how: "reviewed" });
+    else notifyFamily(st.familyId, first ? "lesson_completed" : "lesson_notes", first ? `${st.name}'s lesson · ${l.date}` : `Notes: ${st.name}'s lesson ${l.date}`, first ? `课堂总结：${st.name} ${l.date}` : `课堂笔记：${st.name} ${l.date}`, l.id, false, "reviewed");
     l.summarySentAt = n.sentAt;
     // materialise: covered items + repertoire + next lesson plan
     l.covered = [...n.data.repertoire.map((r) => r.piece), ...n.data.technique];
@@ -174,28 +212,66 @@ export function previousFinalNotes(lessonId) {
 }
 
 // ---------- packages ----------
-export function togglePaid(sessionId) { mutate((s) => { const b = s.sessions.find((x) => x.id === sessionId); b.paid = !b.paid; b.paidAt = b.paid ? today() : null; if (b.paid) { const st = student(b.studentId); notifyFamily(st.familyId, "session_receipt", `Receipt: package #${b.seq} for ${st.name}`, `收据：${st.name} 第 ${b.seq} 期课包`); } }); }
+export function togglePaid(sessionId) { mutate((s) => { const b = s.sessions.find((x) => x.id === sessionId); b.paid = !b.paid; b.paidAt = b.paid ? today() : null; if (b.paid) { const st = student(b.studentId); notifyFamily(st.familyId, "session_paid", `Receipt: package #${b.seq} for ${st.name}`, `收据：${st.name} 第 ${b.seq} 期课包`); } }); }
 export function newSession(studentId, priceCents, alreadyUsed = 0) { mutate((s) => { const last = sessionsOf(studentId).slice(-1)[0]; s.sessions.push({ id: uid("b"), studentId, seq: (last?.seq ?? 0) + 1, total: 10, priceCents, paid: false, paidAt: null, startedAt: today(), parentSummary: null }); for (let i = 0; i < alreadyUsed; i++) s.lessons.push({ id: uid("l"), studentId, date: addDays(today(), -7 * (alreadyUsed - i)), time: "12:00", durationMin: 45, location: "online", feeCents: 0, status: "completed", note: "Backfilled", summarySentAt: "backfill", planned: [], covered: [] }); }); }
 export function backfill(studentId, date, time, status) { mutate((s) => { const st = student(studentId); s.lessons.push({ id: uid("l"), studentId, date, time, durationMin: st.durationMin, location: st.location, feeCents: st.rateCents, status, note: "Backfilled", summarySentAt: "backfill", planned: [], covered: [] }); }); }
 
 // ---------- requests ----------
-export function createRequest(lessonId, date, time, reason) { return mutate((s) => { const l = lesson(lessonId); const st = student(l.studentId); const r = { id: uid("q"), lessonId, familyId: st.familyId, status: "pending", proposedDate: date, proposedTime: time, reason, counterDate: null, counterTime: null, teacherNote: null, createdAt: today(), newLessonId: null }; s.requests.push(r); queue({ event: "teacher_reschedule_request", channel: "email", recipient: s.settings.teacherEmail, subject: `Reschedule request: ${st.name}`, lessonId, familyId: st.familyId, language: "en" }); return r; }); }
+export function createRequest(lessonId, date, time, reason) { return mutate((s) => { const l = lesson(lessonId); const st = student(l.studentId); const r = { id: uid("q"), lessonId, familyId: st.familyId, status: "pending", proposedDate: date, proposedTime: time, reason, counterDate: null, counterTime: null, teacherNote: null, createdAt: today(), newLessonId: null }; s.requests.push(r); queue({ event: "reschedule_requested", channel: "email", recipient: s.settings.teacherEmail, subject: `Reschedule request: ${st.name}`, lessonId, familyId: st.familyId, language: "en" }); return r; }); }
+/** True when the request's lesson was moved or cancelled after the parent asked (like reschedule_lesson in SQL, which raises). */
+export const requestStale = (r) => lesson(r.lessonId)?.status !== "scheduled";
+/** Records the decision. The parent message is drafted with draft("approved" | "countered" | "declined") and reviewed by the teacher. */
 export function decideRequest(id, decision, note, counterDate, counterTime) {
   return mutate((s) => {
-    const r = s.requests.find((x) => x.id === id); const l = lesson(r.lessonId); const st = student(l.studentId);
+    const r = s.requests.find((x) => x.id === id); const l = lesson(r.lessonId);
+    if (decision !== "reject" && l.status !== "scheduled") return { error: "This lesson was already moved or cancelled, so the request can only be declined." };
     r.teacherNote = note || null;
-    if (decision === "approve") { const nl = moveLessonInline(s, l, r.proposedDate, r.proposedTime); r.status = "approved"; r.newLessonId = nl.id; notifyFamily(st.familyId, "reschedule_approved", `Confirmed: ${st.name}'s lesson is now ${r.proposedDate} ${r.proposedTime}`, `已确认：${st.name} 的课改为 ${r.proposedDate} ${r.proposedTime}`, nl.id, true); }
-    else if (decision === "reject") { r.status = "rejected"; notifyFamily(st.familyId, "reschedule_rejected", `Unable to move ${st.name}'s lesson`, `${st.name} 的课无法改期`, l.id); }
-    else { r.status = "countered"; r.counterDate = counterDate; r.counterTime = counterTime; notifyFamily(st.familyId, "reschedule_countered", `Alternative time for ${st.name}'s lesson`, `${st.name} 的课：老师建议其他时间`, l.id, true); }
+    if (decision === "approve") { const nl = moveLessonInline(s, l, r.proposedDate, r.proposedTime); r.status = "approved"; r.newLessonId = nl.id; return { request: r, lesson: nl }; }
+    if (decision === "reject") { r.status = "rejected"; return { request: r }; }
+    r.status = "countered"; r.counterDate = counterDate; r.counterTime = counterTime; return { request: r };
   });
 }
-export function acceptCounter(id) { mutate((s) => { const r = s.requests.find((x) => x.id === id); const l = lesson(r.lessonId); const nl = moveLessonInline(s, l, r.counterDate, r.counterTime); r.status = "approved"; r.newLessonId = nl.id; const st = student(l.studentId); notifyFamily(st.familyId, "reschedule_approved", `Confirmed: ${st.name}'s lesson is now ${r.counterDate}`, `已确认：${st.name} 的课改为 ${r.counterDate}`, nl.id, true); }); }
-export function withdrawRequest(id) { mutate((s) => { const r = s.requests.find((x) => x.id === id); r.status = "withdrawn"; }); }
+/** The parent accepts the teacher's alternative: confirmed to them right away (they chose it themselves). */
+export function acceptCounter(id) {
+  return mutate((s) => {
+    const r = s.requests.find((x) => x.id === id); const l = lesson(r.lessonId);
+    if (l.status !== "scheduled") { r.status = "rejected"; return { error: "This lesson was changed in the meantime. Please contact your teacher." }; }
+    const nl = moveLessonInline(s, l, r.counterDate, r.counterTime); r.status = "approved"; r.newLessonId = nl.id; const st = student(l.studentId);
+    notifyFamily(st.familyId, "reschedule_approved", `Confirmed: ${st.name}'s lesson is now ${fmtDateTime(r.counterDate, r.counterTime)}`, `已确认：${st.name} 的课改为 ${fmtDateTime(r.counterDate, r.counterTime, "zh")}`, nl.id, true);
+    return { lesson: nl };
+  });
+}
+/** A pending request is withdrawn by the parent; declining the teacher's alternative is "rejected", as in live. */
+export function withdrawRequest(id) { mutate((s) => { const r = s.requests.find((x) => x.id === id); r.status = r.status === "countered" ? "rejected" : "withdrawn"; }); }
 function moveLessonInline(s, l, date, time) { const nl = { ...l, id: uid("l"), date, time, status: "scheduled", movedFrom: `${l.date} ${l.time}`, covered: [] }; l.status = "rescheduled"; l.movedTo = nl.id; s.lessons.push(nl); return nl; }
+
+/** Hours from now until a date + time (the 24 h rule counts hours, not days). */
+export function hoursUntil(date, time) { const [y, m, d] = date.split("-").map(Number); const [h, mi] = time.split(":").map(Number); return (new Date(y, m - 1, d, h, mi) - new Date()) / 3600000; }
+
+// ---------- drafts the teacher reviews before anything reaches the parent ----------
+/** kind: moved | approved | countered | declined | attendance → { lang, subject, text } in the family's language. */
+export function draft(kind, { lesson: l, from = null, to = null, note = "" }) {
+  const st = student(l.studentId); const fam = family(st.familyId); const zh = fam.language === "zh";
+  const p = parentsOf(fam.id)[0]; const hi = zh ? `${p?.name ?? ""}您好，` : `Hi ${(p?.name ?? "").split(" ")[0]},`;
+  const sign = zh ? `—— ${state.settings.teacherName}` : `— ${state.settings.teacherName}`;
+  const when = (d, t) => fmtDateTime(d, t, zh ? "zh" : "en");
+  const extra = note?.trim() ? `\n${note.trim()}` : "";
+  const bal = balance(st.id);
+  const T = {
+    moved: () => (zh ? [`${st.name} 的课改时间了`, `${hi}${st.name} 原定 ${when(from.date, from.time)} 的课改到 ${when(to.date, to.time)}。${extra}`] : [`${st.name}'s lesson has moved`, `${hi} ${st.name}'s lesson on ${when(from.date, from.time)} has moved to ${when(to.date, to.time)}.${extra}`]),
+    approved: () => (zh ? [`已确认：${st.name} 的课改到 ${when(to.date, to.time)}`, `${hi}可以的，${st.name} 原定 ${when(from.date, from.time)} 的课改到 ${when(to.date, to.time)}。${extra}`] : [`Confirmed: ${st.name}'s lesson is now ${when(to.date, to.time)}`, `${hi} that works. ${st.name}'s lesson on ${when(from.date, from.time)} is now ${when(to.date, to.time)}.${extra}`]),
+    countered: () => (zh ? [`${st.name} 的课：老师建议其他时间`, `${hi}${when(from.date, from.time)} 我这边不方便，改到 ${when(to.date, to.time)} 可以吗？请在家长门户里接受或拒绝。${extra}`] : [`Another time for ${st.name}'s lesson`, `${hi} ${when(from.date, from.time)} doesn't work for me. Could we do ${when(to.date, to.time)} instead? Please accept or decline in the portal.${extra}`]),
+    declined: () => (zh ? [`${st.name} 的课无法改期`, `${hi}抱歉，${st.name} ${when(l.date, l.time)} 的课这次没法改，还是按原时间上。${extra}`] : [`${st.name}'s lesson stays as planned`, `${hi} sorry, I can't move ${st.name}'s lesson on ${when(l.date, l.time)} this time, so it stays as planned.${extra}`]),
+    attendance: () => (l.status === "no_show"
+      ? (zh ? [`考勤：${st.name} ${when(l.date, l.time)}`, `${hi}${st.name} ${when(l.date, l.time)} 的课记为缺席（计入课包）。课包还剩 ${bal.remaining} 节（共 ${bal.total} 节）。${extra}`] : [`Attendance: ${st.name} · ${when(l.date, l.time)}`, `${hi} ${st.name} was marked absent for the lesson on ${when(l.date, l.time)} (it counts toward the package). ${bal.remaining} of ${bal.total} lessons left.${extra}`])
+      : (zh ? [`课堂总结：${st.name} ${when(l.date, l.time)}`, `${hi}${st.name} ${when(l.date, l.time)} 的课已上完。课包还剩 ${bal.remaining} 节（共 ${bal.total} 节）。${extra}`] : [`${st.name}'s lesson · ${when(l.date, l.time)}`, `${hi} ${st.name} attended the lesson on ${when(l.date, l.time)}. ${bal.remaining} of ${bal.total} lessons left in the package.${extra}`])),
+  }[kind]();
+  return { lang: fam.language, subject: T[0], text: `${T[1]}\n${sign}` };
+}
 
 // ---------- pauses ----------
 export function pausePreview(studentId, startsOn, endsOn) { return state.lessons.filter((l) => l.studentId === studentId && l.status === "scheduled" && l.date >= startsOn && l.date <= endsOn).sort(cmp); }
-export function createPause(studentId, startsOn, endsOn, reason) { return mutate((s) => { const st = student(studentId); const p = { id: uid("z"), studentId, familyId: st.familyId, startsOn, endsOn, reason, status: "pending", result: null, createdAt: today() }; s.pauses.push(p); queue({ event: "teacher_pause_request", channel: "email", recipient: s.settings.teacherEmail, subject: `Pause request: ${st.name}`, familyId: st.familyId, language: "en" }); return p; }); }
+export function createPause(studentId, startsOn, endsOn, reason) { return mutate((s) => { const st = student(studentId); const p = { id: uid("z"), studentId, familyId: st.familyId, startsOn, endsOn, reason, status: "pending", result: null, createdAt: today() }; s.pauses.push(p); queue({ event: "pause_requested", channel: "email", recipient: s.settings.teacherEmail, subject: `Pause request: ${st.name}`, familyId: st.familyId, language: "en" }); return p; }); }
 export function applyPause(studentId, startsOn, endsOn, requestId = null, note = null) {
   return mutate((s) => {
     const st = student(studentId);
@@ -218,14 +294,17 @@ export function saveStudent(id, patch) { return mutate((s) => { if (id) { Object
 export function saveFamily(id, patch) { mutate((s) => Object.assign(s.families.find((x) => x.id === id), patch)); }
 export function newFamily(name, language, parentName, email, phone, sms) { return mutate((s) => { const fid = uid("f"); s.families.push({ id: fid, name, language, smsOptIn: sms }); s.parents.push({ id: uid("p"), familyId: fid, name: parentName, email, phone, primary: true }); return fid; }); }
 export function addParent(familyId, name, email, phone) { mutate((s) => s.parents.push({ id: uid("p"), familyId, name, email, phone, primary: false })); }
-export function removeParent(id) { mutate((s) => { s.parents = s.parents.filter((p) => p.id !== id); }); }
+/** A family keeps at least one parent (their sign-in and the email address). */
+export function removeParent(id) { return mutate((s) => { const p = s.parents.find((x) => x.id === id); if (s.parents.filter((x) => x.familyId === p.familyId).length < 2) return { error: "A family needs at least one parent. Add another parent first." }; s.parents = s.parents.filter((x) => x.id !== id); if (p.primary) s.parents.find((x) => x.familyId === p.familyId).primary = true; return {}; }); }
 export function deleteStudent(id) {
   return mutate((s) => {
     const st = student(id); const lessons = s.lessons.filter((l) => l.studentId === id).length; const sessions = s.sessions.filter((b) => b.studentId === id).length;
+    const ids = new Set(s.lessons.filter((l) => l.studentId === id).map((l) => l.id)); s.requests = s.requests.filter((r) => !ids.has(r.lessonId));
     s.lessons = s.lessons.filter((l) => l.studentId !== id); s.sessions = s.sessions.filter((b) => b.studentId !== id); s.repertoire = s.repertoire.filter((r) => r.studentId !== id); s.pauses = s.pauses.filter((p) => p.studentId !== id);
     s.students = s.students.filter((x) => x.id !== id);
     let familyDeleted = false;
     if (!s.students.some((x) => x.familyId === st.familyId)) { s.families = s.families.filter((f) => f.id !== st.familyId); s.parents = s.parents.filter((p) => p.familyId !== st.familyId); familyDeleted = true; }
+    if (!s.families.some((f) => f.id === s.portal.familyId) && s.families[0]) s.portal = { familyId: s.families[0].id, lang: s.families[0].language };
     return { name: st.name, lessons, sessions, familyDeleted };
   });
 }
@@ -248,8 +327,9 @@ export function dayLocation(date) { const o = state.dayOverrides.find((x) => x.d
 export function checkSlot({ date, time, durationMin, location, excludeId = null }) {
   const st = state.settings; const reasons = []; let level = "ok";
   const start = minutes(time), end = start + durationMin;
-  if (start < minutes(st.teachingStart) || end > minutes(st.teachingEnd)) { level = "warn"; reasons.push(`Outside teaching hours (${st.teachingStart}–${st.teachingEnd})`); }
-  const same = state.lessons.filter((l) => l.date === date && l.status === "scheduled" && l.id !== excludeId);
+  if (date < today() || (date === today() && time < nowTime())) { level = "block"; reasons.push("That time has already passed"); }
+  if (start < minutes(st.teachingStart) || end > minutes(st.teachingEnd)) { level = "block"; reasons.push(`Outside teaching hours (${st.teachingStart}–${st.teachingEnd})`); }
+  const same = state.lessons.filter((l) => l.date === date && l.status !== "cancelled" && l.status !== "rescheduled" && l.id !== excludeId);
   for (const l of same) {
     const s2 = minutes(l.time), e2 = s2 + l.durationMin;
     if (s2 < end && start < e2) { level = "block"; reasons.push(`Overlaps ${studentName(l.studentId)} ${l.time}`); continue; }
@@ -267,7 +347,7 @@ export function checkSlot({ date, time, durationMin, location, excludeId = null 
 export function suggestSlots(studentId, from, to, location, limit = 6) {
   const st = student(studentId); const out = [];
   for (let d = from; d <= to && out.length < 40; d = addDays(d, 1)) {
-    for (let m = minutes(state.settings.teachingStart); m + st.durationMin <= minutes(state.settings.teachingEnd); m += 30) {
+    for (let m = minutes(state.settings.teachingStart); m + st.durationMin <= minutes(state.settings.teachingEnd); m += 15) {
       const time = `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
       const c = checkSlot({ date: d, time, durationMin: st.durationMin, location });
       if (c.level === "block") continue;
