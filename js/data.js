@@ -60,9 +60,14 @@ export function seed() {
     { studentId: "s1", time: "16:00", durationMin: 45, location: "newmarket", status: "scheduled" },
     { studentId: "s3", time: "17:30", durationMin: 30, location: "online", status: "scheduled" },
   ];
+  const mins = (t) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+  const fits = (time, dur, loc) => lessons.filter((l) => l.date === T).every((l) => { const gap = Math.max(mins(l.time) - (mins(time) + dur), mins(time) - (mins(l.time) + l.durationMin)); const travel = l.location !== loc && l.location !== "online" && loc !== "online" ? 45 : 15; return gap >= travel; });
+  const slots = ["10:00", "11:00", "12:35", "13:30", "14:30", "15:30", "16:00", "17:30", "18:30", "19:00"];
   for (const t of todays) {
     if (lessons.some((l) => l.studentId === t.studentId && l.date === T)) continue;
-    lessons.push({ id: id("l"), studentId: t.studentId, date: T, time: t.time, durationMin: t.durationMin, location: t.location, feeCents: 6500, status: t.status, note: null, summarySentAt: t.summarySentAt ?? null, planned: [], covered: [] });
+    const time = [t.time, ...slots].find((x) => fits(x, t.durationMin, t.location)); if (!time) continue;
+    const st = students.find((x) => x.id === t.studentId);
+    lessons.push({ id: id("l"), studentId: t.studentId, date: T, time, durationMin: t.durationMin, location: t.location, feeCents: st.rateCents, status: t.status, note: null, summarySentAt: t.summarySentAt ?? null, planned: [], covered: [] });
   }
   // Yesterday: one overdue lesson still "scheduled" (to mark) for Kai if none exists
   const y = addDays(T, -1);
@@ -119,7 +124,7 @@ export function seed() {
   }
   notifications.push({ id: id("m"), event: "lesson_reminder", channel: "sms", recipient: "+1 555 111 0002", subject: null, body: "Reminder: Kai's lesson tomorrow 5:00 PM", status: "sent", error: null, createdAt: `${addDays(T, -1)} 09:00`, lessonId: null, familyId: "f2", language: "en" });
   notifications.push({ id: id("m"), event: "session_low_balance", channel: "email", recipient: "li.wang@example.com", subject: "王小明：本期课包还剩 2 节", status: "failed", error: "Mailbox unavailable (450). Will retry.", createdAt: `${addDays(T, -2)} 13:00`, lessonId: null, familyId: "f3", language: "zh" });
-  notifications.push({ id: id("m"), event: "teacher_reschedule_request", channel: "email", recipient: "teacher@example.com", subject: "Reschedule request: Kai Nguyen", status: "sent", error: null, createdAt: `${addDays(T, -1)} 20:12`, lessonId: kaiNext?.id ?? null, familyId: "f2", language: "en" });
+  notifications.push({ id: id("m"), event: "reschedule_requested", channel: "email", recipient: "teacher@example.com", subject: "Reschedule request: Kai Nguyen", status: "sent", error: null, createdAt: `${addDays(T, -1)} 20:12`, lessonId: kaiNext?.id ?? null, familyId: "f2", language: "en" });
 
   return { settings, families, parents, students, lessons, sessions, repertoire, notes, requests, pauses, notifications, dayOverrides: [{ day: addDays(T, 3), location: "north_york" }], busy: [{ date: addDays(T, 2), start: "13:00", end: "15:00", title: "Orchestra rehearsal" }], portal: { familyId: "f1", lang: "en" } };
 }
@@ -134,7 +139,7 @@ function sampleNotes(studentId, k) {
   const base = by[studentId] ?? by.s1;
   const d = JSON.parse(JSON.stringify(base));
   d.totalMin = d.practice.reduce((a, p) => a + p.min, 0);
-  if (k > 1) { d.message = d.message.replace(/\.$/, "") + (k === 2 ? " (previous lesson)" : " (earlier lesson)"); }
+  if (k > 1) { const zh = /[一-鿿]/.test(d.message); d.message = d.message.replace(/[.。]$/, "") + (zh ? (k === 2 ? "（上一节）" : "（更早）") : k === 2 ? " (previous lesson)" : " (earlier lesson)"); }
   return d;
 }
 

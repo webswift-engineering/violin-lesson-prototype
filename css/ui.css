@@ -29,7 +29,9 @@ button { font: inherit; color: inherit; }
 .stage { display: flex; justify-content: center; padding: 16px; }
 .frame { width: 100%; max-width: 52rem; min-height: 60vh; }
 body[data-frame="phone"] .frame { width: 24.5rem; max-width: 100%; border: 10px solid rgb(var(--ink)); border-radius: 36px; height: 52rem; overflow: auto; background: rgb(var(--surface-muted)); position: relative; }
-body[data-frame="phone"] .frame .app { padding-bottom: 5rem; }
+body[data-frame="phone"] .frame .app { min-height: 100%; display: flex; flex-direction: column; }
+body[data-frame="phone"] .frame .app > .main { flex: 1 0 auto; width: 100%; }
+body[data-frame="phone"] .frame .app > * { min-width: 0; max-width: 100%; }
 body[data-frame="phone"] .desk-only { display: none !important; }
 body[data-frame="desktop"] .phone-only { display: none !important; }
 
@@ -41,7 +43,8 @@ body[data-frame="desktop"] .phone-only { display: none !important; }
 .topnav li a { display: flex; align-items: center; gap: 6px; padding: 12px 14px; font-size: .9rem; color: rgb(var(--ink-muted)); position: relative; }
 .topnav li a.active { color: rgb(var(--brand)); font-weight: 600; }
 .bottomnav { position: sticky; bottom: 0; z-index: 30; background: rgb(var(--surface)); border-top: 1px solid rgb(var(--line)); }
-body[data-frame="phone"] .bottomnav { position: absolute; left: 0; right: 0; bottom: 0; }
+/* phone frame: the nav sticks to the bottom of the visible screen, not to the bottom of the first screenful */
+body[data-frame="phone"] .bottomnav { position: sticky; bottom: 0; margin-top: auto; }
 .bottomnav ul { display: grid; grid-template-columns: repeat(4, 1fr); }
 .bottomnav li a { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 0 10px; font-size: .68rem; color: rgb(var(--ink-muted)); position: relative; }
 .bottomnav li a.active { color: rgb(var(--brand)); font-weight: 600; }
@@ -201,7 +204,7 @@ body[data-frame="phone"] .overlay { position: absolute; }
 .sec [contenteditable="true"] { outline: 2px solid rgb(var(--accent)); border-radius: 6px; padding: 2px 4px; }
 .plan .it { display: flex; justify-content: space-between; gap: 8px; font-size: .9rem; padding: 2px 0; }
 .sticky-foot { position: sticky; bottom: 0; background: rgb(var(--surface-muted)); padding: 10px 0 4px; }
-body[data-frame="phone"] .sticky-foot { bottom: 3.6rem; }
+body[data-frame="phone"] .sticky-foot { bottom: 3.6rem; z-index: 31; }
 
 /* ---- heatmap ---- */
 .heat-wrap { position: relative; overflow-x: auto; padding-bottom: 4px; }
@@ -227,3 +230,12 @@ body[data-frame="phone"] .sticky-foot { bottom: 3.6rem; }
 /* ---- reduced motion ---- */
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 @media (max-width: 520px) { .grid3 { grid-template-columns: 1fr 1fr; } .cell { min-height: 4rem; } .lchip { font-size: .64rem; } .main { padding-inline: 12px; } }
+
+/* ---- review round 3 (2026-10-01) ---- */
+.frame.locked { overflow: hidden; }
+.grid2 > *, .grid3 > *, .row > .input { min-width: 0; }
+.row > .input { flex: 1; }
+.input { min-width: 0; max-width: 100%; }
+.input-sm { min-height: 32px; padding: 4px 8px; width: auto; flex: none !important; }
+.sticky-foot.grid2 { display: grid; }
+.list button.li[disabled] { opacity: .45; cursor: default; }
