@@ -47,8 +47,8 @@ export function reportData(studentId, period) {
   const held = all.filter((l) => l.date <= T);
   const inP = held.filter((l) => l.date >= from);
   const c = inP.filter((l) => l.status === "completed").length, n = inP.filter((l) => l.status === "no_show").length, x = inP.filter((l) => l.status === "cancelled").length;
-  // months: the period's months, at most the last 12
-  const first = period === "all" ? (inP.map((l) => ym(l.date)).sort()[0] ?? ym(T)) : ym(from);
+  // months: from the student's first lesson in the period (owner, 2026-10-01), at most the last 12
+  const first = inP.map((l) => ym(l.date)).sort()[0] ?? ym(T);
   const months = []; for (let m = ym(T); m >= first && months.length < 12; m = prevMonth(m)) months.unshift(m);
   const byMonth = months.map((m) => { const ls = inP.filter((l) => ym(l.date) === m); return { m, completed: ls.filter((l) => l.status === "completed").length, absent: ls.filter((l) => l.status === "no_show").length, cancelled: ls.filter((l) => l.status === "cancelled").length }; });
   const rep = S.get().repertoire.filter((r) => r.studentId === studentId && (r.completedOn ?? T) >= from).sort((a, b) => a.startedOn.localeCompare(b.startedOn));
@@ -152,7 +152,8 @@ export function teacher(route) {
     mountReport(root, d);
     const ta = root.querySelector("#rp-comment"); let h;
     ta.addEventListener("input", () => { clearTimeout(h); h = setTimeout(() => { S.saveReportDraft(draftKey, ta.value); const body = root.querySelector("#rp-body"); body.innerHTML = reportHtml(d, ta.value); mountReport(body, d); }, 400); });
-    const publish = () => S.publishReport(s.id, period, ta.value);
+    // the family gets the numbers as they were when it was sent (owner, 2026-10-01)
+    const publish = () => S.publishReport(s.id, period, ta.value, JSON.parse(JSON.stringify(reportData(s.id, period))));
     const message = (r) => { const url = `${location.origin}${location.pathname}#/portal/reports/${r.id}`; return { url, subject: zh ? `${s.name} 的学习报告（${L.zh.periods[period]}）` : `${s.name}'s progress report (${L.en.periods[period]})`, text: zh ? `${S.parentsOf(fam.id)[0]?.name ?? ""}您好，这是 ${s.name} 的学习报告（${L.zh.periods[period]}）：${url}` : `Hi ${(S.parentsOf(fam.id)[0]?.name ?? "").split(" ")[0]}, here is ${s.name}'s progress report (${L.en.periods[period]}): ${url}` }; };
     root.querySelector("#rp-send").addEventListener("click", () => { const r = publish(); const m = message(r); S.sendReviewed(fam.id, "student_report", { subject: m.subject, text: m.text }); toast(`Report link emailed to ${fam.name}`); });
     root.querySelector("#rp-wechat").addEventListener("click", async () => { const r = publish(); const m = message(r); try { await navigator.clipboard.writeText(m.text); } catch { /* the outbox keeps the text */ } S.sendReviewed(fam.id, "student_report", { subject: m.subject, text: m.text, wechat: true }); toast("Copied · paste it into WeChat"); });
@@ -163,7 +164,7 @@ export function teacher(route) {
 // ---------- family: the sent report ----------
 export function parent(route) {
   const r = (S.get().reports ?? []).find((x) => x.id === route.params.id); if (!r || !S.student(r.studentId)) return { html: empty("Report not found") };
-  const d = reportData(r.studentId, r.period); const t = L[d.lang];
+  const d = r.snapshot ?? reportData(r.studentId, r.period); const t = L[d.lang];
   return { html: `<div class="row between mb3 no-print"><a class="small brand" href="${href("/portal")}">‹ ${t.back}</a><button class="btn btn-outline btn-sm" id="rp-pdf">${t.pdf}</button></div>${reportHtml(d, r.comment)}`, mount(root) { mountReport(root, d); root.querySelector("#rp-pdf").addEventListener("click", () => window.print()); } };
 }
 export { go };

@@ -17,7 +17,8 @@ Live: https://webswift-engineering.github.io/violin-lesson-prototype/
 ## Rules
 
 - No real names, emails, phone numbers or lesson notes in this repository. The sample studio is
-  invented (Chen, Nguyen, 王 families).
+  invented (Chen, Nguyen, 王 families). The one exception: the teacher agreed (2026-10-01) that her
+  studio name and website may appear.
 - Plain HTML, CSS and JavaScript: no build step. Open `index.html` from disk or serve the folder.
 
 ## Layout
