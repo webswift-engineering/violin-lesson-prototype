@@ -2,6 +2,7 @@
 
 Newest first. Format: date · screen id · what changed · who asked.
 
+- 2026-10-04 · teacher/notes · two modes above the button: "Transcribe only" (the teacher's words, verbatim, no AI) and "Organise my notes" (only what she said, sorted into sections, nothing invented; minutes left out when not stated) · teacher
 - 2026-10-01 · teacher/report, parent/report · a sent report keeps the numbers of the day it was sent; the monthly chart starts at the student's first lesson in the period · owner
 - 2026-10-01 · all · rounds 3 and 4 declared final by the owner; they go to the live app next · owner
 

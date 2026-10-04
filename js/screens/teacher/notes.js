@@ -7,15 +7,20 @@ import { href, go } from "../../router.js";
 const MIC = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor" stroke="none"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8"/></svg>`;
 const fmtS = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 const recs = {};
-const blank = () => ({ secs: 0, timer: null, stage: "idle", typed: "" });
+const blank = () => ({ secs: 0, timer: null, stage: "idle", typed: "", mode: (() => { try { return localStorage.getItem("proto-notes-mode") || "organise"; } catch { return "organise"; } })() });
 let rec = blank();
 
 /**
  * Prototype stand-in for the AI step. It only reuses what the teacher typed and last lesson's plan, so the review
  * screen never shows things she did not say. The live app writes real prose in the family's language.
  */
-function draftFrom(l, prev, typed, secs = 0) {
+function draftFrom(l, prev, typed, secs = 0, mode = "organise") {
   const s = S.student(l.studentId); const fam = S.family(s.familyId); const zh = fam.language === "zh";
+  if (mode === "transcript") {
+    // R24a: the teacher's words only. The demo cannot transcribe, so it shows what the live app would: the memo text + typed lines, verbatim.
+    const text = [secs ? (zh ? `（示例转写，${fmtS(secs)}）Hello，今天做得很好。` : `(Demo transcript, ${fmtS(secs)}) Hello, you're doing good today.`) : "", (typed ?? "").trim()].filter(Boolean).join("\n\n");
+    return { message: text, repertoire: [], wentWell: [], practice: [], technique: [], nextPlan: [], uncertainties: [], totalMin: 0, mode: "transcript" };
+  }
   const points = (typed ?? "").split(/\n|;|；/).map((x) => x.replace(/^\s*[-•*]\s*/, "").trim()).filter(Boolean);
   const base = prev?.data ? JSON.parse(JSON.stringify(prev.data)) : { repertoire: [], wentWell: [], practice: [], technique: [], nextPlan: [], uncertainties: [] };
   const first = zh ? s.name : s.name.split(" ")[0];
@@ -30,6 +35,7 @@ function draftFrom(l, prev, typed, secs = 0) {
     ...(zh && points.some((x) => /[a-z]{3}/i.test(x)) ? ["The live app writes this email in 中文; the prototype keeps your words as typed."] : []),
   ];
   base.totalMin = base.practice.reduce((a, p) => a + p.min, 0);
+  base.mode = "organise";
   return base;
 }
 /** Plain text of the parent's email, for pasting into WeChat. */
@@ -50,7 +56,7 @@ export function render(route) {
       <div class="sec"><h4>${zh ? "老师的话" : "Message"}</h4><button class="btn btn-ghost btn-xs edit" data-edit>Edit</button><p data-field="message">${esc(d.message)}</p></div>
       ${d.repertoire.length ? `<div class="sec"><h4>${zh ? "本节课内容" : "What we worked on"}</h4><div class="row wrap" data-field="repertoire">${d.repertoire.map((r) => chip("brand", `${r.piece}${r.composer ? " · " + r.composer : ""}${r.section ? " · " + r.section : ""}`)).join("")}</div></div>` : ""}
       <div class="sec"><h4>${zh ? "做得好的地方" : "What went well"}</h4><button class="btn btn-ghost btn-xs edit" data-edit>Edit</button><p data-field="wentWell">${d.wentWell.length ? d.wentWell.map(esc).join(zh ? "；" : "; ") : `<span class="muted">${zh ? "（可选，点 Edit 填写）" : "(optional, tap Edit)"}</span>`}</p></div>
-      <div class="sec"><h4>${zh ? `本周练习 · 每天约 ${d.totalMin} 分钟` : `Practice this week · about ${d.totalMin} min/day`}</h4><button class="btn btn-ghost btn-xs edit" data-edit>Edit</button><div class="plan" data-field="practice">${d.practice.map((p) => `<div class="it"><span>${esc(p.task)}${p.tip ? `<div class="xs muted">${esc(p.tip)}</div>` : ""}</span><b>${zh ? `每天 ${p.min} 分钟` : `${p.min} min/day`}</b></div>`).join("")}</div></div>
+      ${d.practice.length || d.mode !== "transcript" ? `<div class="sec"><h4>${zh ? `本周练习${d.totalMin ? ` · 每天约 ${d.totalMin} 分钟` : ""}` : `Practice this week${d.totalMin ? ` · about ${d.totalMin} min/day` : ""}`}</h4><button class="btn btn-ghost btn-xs edit" data-edit>Edit</button><div class="plan" data-field="practice">${d.practice.map((p) => `<div class="it"><span>${esc(p.task)}${p.tip ? `<div class="xs muted">${esc(p.tip)}</div>` : ""}</span><b>${p.min ? (zh ? `每天 ${p.min} 分钟` : `${p.min} min/day`) : ""}</b></div>`).join("")}</div></div>` : ""}
       ${balText ? `<div class="sec"><p class="muted small">${esc(balText)}</p></div>` : ""}</div>`;
 
   let html = head, mount = () => {};
@@ -60,16 +66,16 @@ export function render(route) {
     return { html, mount };
   }
   if (rec.stage === "working") {
-    const steps = rec.secs ? [`Uploading your memo (${fmtS(rec.secs)})`, "Turning your voice into text", `Writing the email in ${zh ? "中文" : "English"}`] : ["Reading your notes", `Writing the email in ${zh ? "中文" : "English"}`];
+    const steps = rec.mode === "transcript" ? (rec.secs ? [`Uploading your memo (${fmtS(rec.secs)})`, "Turning your voice into text"] : ["Keeping your words"]) : rec.secs ? [`Uploading your memo (${fmtS(rec.secs)})`, "Turning your voice into text", `Sorting what you said into sections (${zh ? "中文" : "English"})`] : ["Reading your notes", `Sorting what you said into sections (${zh ? "中文" : "English"})`];
     html += `<div class="steps">${steps.map((t, i) => `<div class="step${i ? "" : " run"}" id="s${i + 1}"><i></i><span>${esc(t)}</span></div>`).join("")}</div><p class="tc muted small">Usually 20–40 seconds. You can lock the phone; the notes will be here when you return.</p>`;
     const last = steps.length; const r0 = rec;
     mount = (root) => { const here = () => location.hash.startsWith(`#/lessons/${l.id}/notes`);
-      const go1 = (i) => { if (r0 !== recs[l.id]) return; if (i > last || !here()) { r0.stage = "review"; S.saveNotes(l.id, { data: draftFrom(l, prev, r0.typed, r0.secs), bullets: r0.typed ?? "", transcript: r0.secs ? `(${fmtS(r0.secs)} memo transcribed)` : null }); return; } for (let k = 1; k < i; k++) { const e = root.querySelector("#s" + k); e.className = "step done"; e.querySelector("i").textContent = "✓"; } root.querySelector("#s" + i).className = "step run"; setTimeout(() => go1(i + 1), i === last ? 1400 : 800); }; go1(1); };
+      const go1 = (i) => { if (r0 !== recs[l.id]) return; if (i > last || !here()) { r0.stage = "review"; S.saveNotes(l.id, { data: draftFrom(l, prev, r0.typed, r0.secs, r0.mode), bullets: r0.typed ?? "", transcript: r0.secs ? `(${fmtS(r0.secs)} memo transcribed)` : null }); return; } for (let k = 1; k < i; k++) { const e = root.querySelector("#s" + k); e.className = "step done"; e.querySelector("i").textContent = "✓"; } root.querySelector("#s" + i).className = "step run"; setTimeout(() => go1(i + 1), i === last ? 1400 : 800); }; go1(1); };
     return { html, mount };
   }
   if (n?.data && (rec.stage === "review" || rec.stage === "idle")) {
     rec.stage = "review";
-    html += `<p class="muted small mb2">This is the email the parent will receive. Tap Edit on a section to fix it in place.</p>${mailPreview(n.data)}
+    html += `<p class="muted small mb2">${n.data.mode === "transcript" ? "Your words, as said. Nothing was added." : "Organised from what you said; nothing invented, empty sections stay empty."} This is the email the parent will receive. Tap Edit on a section to fix it in place.</p>${mailPreview(n.data)}
       <div class="card p3 mt3 small"><div class="muted xs">Teacher-only (not sent)</div><div><b>Next lesson:</b> ${n.data.nextPlan.map(esc).join(" · ") || "—"}</div>${n.data.uncertainties.length ? `<div class="warn">Please double-check: ${n.data.uncertainties.map(esc).join(" · ")}</div>` : ""}</div>
       <div class="row wrap mt3"><button class="btn btn-ghost btn-sm" id="revise">✨ Ask for a change…</button><button class="btn btn-ghost btn-sm" id="details">Edit details</button><button class="btn btn-ghost btn-sm" id="redo">Start over</button></div>
       <div id="details-box" class="hide card p3 mt3 col small">${field("Message to parent", `<textarea class="input" id="d-msg">${esc(n.data.message)}</textarea>`)}${field("Practice plan (one per line: task | min/day)", `<textarea class="input" id="d-plan">${esc(n.data.practice.map((p) => `${p.task} | ${p.min}`).join("\n"))}</textarea>`)}${field("Next lesson plan (one per line)", `<textarea class="input" id="d-next">${esc(n.data.nextPlan.join("\n"))}</textarea>`)}<button class="btn btn-outline btn-sm" id="d-save">Apply</button></div>
@@ -91,8 +97,10 @@ export function render(route) {
     <div class="row wrap mt3"><button class="btn btn-outline btn-sm" id="same" ${prev ? "" : "disabled"}>↺ Same practice plan as last time</button>${S.consumes(l.status) && !l.summarySentAt ? `<button class="btn btn-outline btn-sm" id="skip">Send attendance only</button>` : ""}</div>
     ${prev ? `<details class="mt3"><summary class="muted small" style="cursor:pointer">Last lesson's notes</summary><div class="small mt2 card p3">${esc(prev.data.message)}<div class="xs muted mt1">Practice: ${prev.data.practice.map((p) => `${esc(p.task)} ${p.min} min/day`).join(" · ")}</div></div></details>` : ""}
     ${l.planned.length ? `<div class="note note-info mt3 small">Planned for this lesson: ${l.planned.map(esc).join(" · ")}</div>` : ""}
-    <div class="sticky-foot"><button class="btn btn-primary w" id="gen" disabled>Write the notes</button></div>`;
+    <div class="card p3 mt3 col"><div class="muted small">How to write the notes</div><div class="seg"><button class="${rec.mode === "transcript" ? "on" : ""}" data-mode="transcript">Transcribe only</button><button class="${rec.mode === "organise" ? "on" : ""}" data-mode="organise">Organise my notes</button></div><p class="xs muted" id="mode-hint">${rec.mode === "transcript" ? "Your words, verbatim. No AI call, nothing added." : "Only what you said, sorted into sections. Nothing invented; empty sections stay empty."}</p></div>
+    <div class="sticky-foot"><button class="btn btn-primary w" id="gen" disabled>${rec.mode === "transcript" ? "Transcribe only" : "Organise my notes"}</button></div>`;
   mount = (root) => {
+    root.querySelectorAll("[data-mode]").forEach((b) => b.addEventListener("click", () => { rec.mode = b.dataset.mode; try { localStorage.setItem("proto-notes-mode", rec.mode); } catch {} S.saveNotes(l.id, { bullets: rec.typed ?? "" }); }));
     const mic = root.querySelector("#mic"), timer = root.querySelector("#timer"), ta = root.querySelector("#typed"), gen = root.querySelector("#gen");
     const upd = () => { gen.disabled = !(rec.secs > 0 || ta.value.trim()); };
     ta.addEventListener("input", () => { rec.typed = ta.value; upd(); });
