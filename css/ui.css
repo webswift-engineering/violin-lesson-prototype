@@ -298,7 +298,8 @@ body[data-frame="phone"] .grid4 { grid-template-columns: 1fr 1fr; }
 .cal-dow, .legend, .tile .k, .sec h4, .lchip { font-size: .8rem; }
 body[data-frame="phone"] .cal-h, body[data-frame="phone"] .cal-h .grp { flex-wrap: wrap; row-gap: 8px; }
 body[data-frame="phone"] .cal-h .grp { min-width: 0; max-width: 100%; }
-body[data-frame="phone"] .seg a, body[data-frame="phone"] .seg button { padding: 10px 14px; min-height: 40px; display: inline-flex; align-items: center; flex: none; }
+body[data-frame="phone"] .seg { flex-wrap: wrap; max-width: 100%; }
+body[data-frame="phone"] .seg a, body[data-frame="phone"] .seg button { padding: 10px 14px; min-height: 40px; display: inline-flex; align-items: center; justify-content: center; flex: 1 0 auto; }
 body[data-frame="phone"] .btn-sm { min-height: 40px; min-width: 40px; }
 body[data-frame="phone"] .attn { padding-top: 6px; }
 body[data-frame="phone"] .attn a { min-height: 40px; padding-inline: 14px; }
