@@ -2,6 +2,8 @@
 
 Newest first. Format: date · screen id · what changed · who asked.
 
+- 2026-11-11 · teacher/student-new, teacher/student · adding a student with a weekly day and time now starts the package and books its lessons on save (a line above the button says exactly what will be booked); "Lessons left in this package" (10 for a new student, fewer for one part-way through) and "Package is paid" sit on the same form; without a weekly time the student is saved without lessons and the student page shows one button to set the time and book; any student with nothing booked gets a "Book N lessons" button above the calendar; nothing is sent to the family until "Send the schedule" · owner (spec R25)
+
 - 2026-10-04 · teacher/notes · two modes above the button: "Transcribe only" (the teacher's words, verbatim, no AI) and "Organise my notes" (only what she said, sorted into sections, nothing invented; minutes left out when not stated) · teacher
 - 2026-10-01 · teacher/report, parent/report · a sent report keeps the numbers of the day it was sent; the monthly chart starts at the student's first lesson in the period · owner
 - 2026-10-01 · all · rounds 3 and 4 declared final by the owner; they go to the live app next · owner

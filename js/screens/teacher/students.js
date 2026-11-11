@@ -39,6 +39,14 @@ export function detail(route) {
       <div class="row wrap mt2"><button class="btn btn-ghost btn-sm" id="fam-open">Edit family</button><button class="btn btn-ghost btn-sm" id="np-open">+ Add parent</button></div>`,
   };
 
+  // R25: a calendar is never left empty without a way out
+  const hasSlot = s.weekday !== null && !!s.time; const toBook = S.openToBook(s.id); const slotText = hasSlot ? `${DOW_LONG[s.weekday]}s ${fmt12(s.time)}` : "";
+  const bookedNow = Number(route.query.booked) || 0;
+  const bookNote = bookedNow && upcoming.length
+    ? `<div class="note note-ok mt3 row between wrap"><span>${bookedNow} lesson${bookedNow === 1 ? "" : "s"} booked: ${slotText}, ${fmtDate(upcoming[0].date, "md")} – ${fmtDate(upcoming[upcoming.length - 1].date, "md")}. The family has not been told yet.</span><button class="btn btn-outline btn-sm" id="send-sched">Send the schedule</button></div>`
+    : s.active && !upcoming.length && toBook > 0
+      ? `<div class="note note-warn mt3 col"><span>No lessons booked${active ? ` · ${toBook} still to book in package #${active.seq}` : " · no active package"}.</span>${hasSlot ? `<button class="btn btn-primary" id="book-slot">Book ${toBook} lesson${toBook === 1 ? "" : "s"} · ${slotText}</button>` : `<button class="btn btn-primary" id="set-slot">Set the weekly time and book ${toBook} lesson${toBook === 1 ? "" : "s"}</button>`}</div>`
+      : "";
   const html = `${pageHeader(s.name, { subtitle: `${esc(s.level ?? "")} · age ${s.age} · ${s.size} · ${s.durationMin} min<br>${money(s.rateCents)}/lesson · ${loc(s.location)}${s.weekday !== null ? ` · ${DOW_LONG[s.weekday]}s ${fmt12(s.time)}` : ""}`, back: "/students", action: `<a class="btn btn-outline btn-sm" href="${href(`/students/${s.id}/edit`)}">Edit</a>` })}
     <div class="card p4 col">
       <div class="row between wrap" style="align-items:flex-start">
@@ -49,6 +57,7 @@ export function detail(route) {
       ${s.notes ? `<div class="xs muted" style="white-space:pre-wrap">📝 ${esc(s.notes)}</div>` : ""}
     </div>
     <div class="grid2 mt3"><a class="btn btn-primary" href="${href(`/students/${s.id}/records?period=ytd`)}">📋 Lesson records</a><button class="btn btn-accent" id="move-lesson" ${upcoming.length ? "" : "disabled"}>⇄ Move a lesson</button></div>
+    ${bookNote}
     ${section("Schedule", calendarHtml({ view, anchor, basePath: `/students/${s.id}`, lessons: calLessons, lockStudent: s, compact: true }))}
     <div class="section"><div class="row between wrap"><div class="seg">${[["packages", `Packages · ${sessions.length}`], ["repertoire", `Repertoire · ${rep.length}`], ["family", "Family"]].map(([k, l]) => `<a class="${tab === k ? "on" : ""}" href="${tabLink(k)}">${l}</a>`).join("")}</div><button class="btn btn-ghost btn-sm" id="more">⋯ More</button></div><div class="mt3">${panels[tab]}</div></div>`;
 
@@ -65,6 +74,9 @@ export function detail(route) {
     q("#fam-open")?.addEventListener("click", () => openSheet("Family", `<div class="col">${field("Family name", `<input class="input" value="${esc(fam.name)}" id="fam-name">`)}${field("Email / SMS language", `<select class="input" id="fam-lang"><option value="en" ${fam.language === "en" ? "selected" : ""}>English</option><option value="zh" ${fam.language === "zh" ? "selected" : ""}>中文</option></select>`)}<label class="check"><input type="checkbox" id="fam-sms" ${fam.smsOptIn ? "checked" : ""}> Send SMS too</label><button class="btn btn-primary w" id="fam-save">Save family</button></div>`, (sh) => sh.querySelector("#fam-save").addEventListener("click", () => { S.saveFamily(fam.id, { name: sh.querySelector("#fam-name").value, language: sh.querySelector("#fam-lang").value, smsOptIn: sh.querySelector("#fam-sms").checked }); toast("Family saved"); })));
     q("#np-open")?.addEventListener("click", () => openSheet("Add parent", `<div class="col">${field("Name", `<input class="input" id="np-name">`)}${field("Email (their sign-in)", `<input class="input" id="np-email" type="email">`)}${field("Phone", `<input class="input" id="np-phone" type="tel">`)}<button class="btn btn-primary w" id="np-add">Add parent</button></div>`, (sh) => sh.querySelector("#np-add").addEventListener("click", () => { const v = (id) => sh.querySelector(id).value.trim(); if (!v("#np-name") || !v("#np-email")) return toast("Name and email are required", "warn"); S.addParent(fam.id, v("#np-name"), v("#np-email"), v("#np-phone")); toast("Parent added"); })));
     q("#more").addEventListener("click", () => openMoreActions(s, fam, parents, active));
+    q("#book-slot")?.addEventListener("click", () => { const n = S.bookFromSlot(s.id); toast(`${n} lessons booked`); go(`/students/${s.id}?booked=${n}`); });
+    q("#set-slot")?.addEventListener("click", () => openSheet("Weekly time", `<div class="col"><div class="grid2">${field("Day", `<select class="input" id="ws-wd">${DOW_LONG.map((d, i) => `<option value="${i}">${d}</option>`).join("")}</select>`)}${field("Time", `<input class="input" id="ws-time" type="time" value="16:00">`)}</div><button class="btn btn-primary w" id="ws-go">Save and book ${toBook} lesson${toBook === 1 ? "" : "s"}</button></div>`, (sh) => sh.querySelector("#ws-go").addEventListener("click", () => { const t = sh.querySelector("#ws-time").value; if (!t) return toast("Pick a time", "warn"); S.saveStudent(s.id, { weekday: Number(sh.querySelector("#ws-wd").value), time: t }); const n = S.bookFromSlot(s.id); closeSheet(); toast(`${n} lessons booked`); go(`/students/${s.id}?booked=${n}`); })));
+    q("#send-sched")?.addEventListener("click", () => { S.notifyFamily(fam.id, "schedule_published", `${s.name}'s lesson schedule${active ? ` — package #${active.seq}` : ""}`, `${s.name} 的课程安排${active ? ` — 第 ${active.seq} 期课包` : ""}`, null, true); toast(`Schedule emailed${fam.smsOptIn ? " + SMS" : ""} to ${fam.name}`); go(`/students/${s.id}`); });
   } };
 }
 
@@ -99,6 +111,7 @@ function studentForm(s, isNew) {
     <label class="check"><input type="checkbox" id="f-active" ${s?.active ?? true ? "checked" : ""}> Active student</label>
     <label class="check"><input type="checkbox" id="f-auto" ${s?.autoCreate ?? true ? "checked" : ""}> Open the next package automatically when one closes</label>
     ${field("Private notes (teacher only)", `<textarea class="input" id="f-notes">${esc(s?.notes ?? "")}</textarea>`)}
+    ${isNew ? `<div class="b mt2">Lessons</div><div class="grid2">${field("Lessons left in this package", `<input class="input" id="f-left" type="number" min="1" max="10" value="10">`)}<label class="check" style="align-self:end;padding-bottom:10px"><input type="checkbox" id="f-paid"> Package is paid</label></div><p class="xs muted">10 for a new student. Fewer if they are part-way through a package: the earlier lessons count as taken, without dates.</p><div class="note note-info" id="f-plan"></div>` : ""}
     ${isNew ? `<div class="b mt2">Family</div>${field("Family", `<select class="input" id="f-fam"><option value="">New family…</option>${families.map((f) => `<option value="${f.id}">${esc(f.name)}</option>`).join("")}</select>`)}<div id="newfam" class="col"><div class="grid2">${field("Family name", `<input class="input" id="nf-name" placeholder="Chen family">`)}${field("Email / SMS language", `<select class="input" id="nf-lang"><option value="en">English</option><option value="zh">中文</option></select>`)}</div><div class="grid3">${field("Parent name", `<input class="input" id="nf-pname">`)}${field("Parent email (their sign-in)", `<input class="input" id="nf-email">`)}${field("Phone", `<input class="input" id="nf-phone">`)}</div><label class="check"><input type="checkbox" id="nf-sms"> Send SMS too</label></div>` : `<p class="xs muted">Family: ${esc(fam.name)} (edit on the student page)</p>`}
     <p class="danger small" id="f-err"></p><button class="btn btn-primary w" id="f-save">${isNew ? "Add student" : "Save changes"}</button></div>`;
 }
@@ -107,7 +120,13 @@ function readForm(root) { const q = (id) => root.querySelector(id); const wd = q
 export function create() {
   return { html: pageHeader("New student", { back: "/students" }) + studentForm(null, true), mount(root) {
     const q = (id) => root.querySelector(id); q("#f-fam").addEventListener("change", () => q("#newfam").classList.toggle("hide", !!q("#f-fam").value));
-    q("#f-save").addEventListener("click", () => { const p = readForm(root); if (!p.name) return (q("#f-err").textContent = "Name is required"); let fid = q("#f-fam").value; if (!fid) { if (!q("#nf-name").value || !q("#nf-pname").value || !q("#nf-email").value) return (q("#f-err").textContent = "Family name, parent name and parent email are required for a new family."); fid = S.newFamily(q("#nf-name").value, q("#nf-lang").value, q("#nf-pname").value, q("#nf-email").value, q("#nf-phone").value, q("#nf-sms").checked); } const id = S.saveStudent(null, { ...p, familyId: fid }); toast("Student added"); go(`/students/${id}`); });
+    // R25: say what saving will book, before saving
+    const left = () => Math.min(10, Math.max(1, Number(q("#f-left").value) || 10));
+    const plan = () => { const wd = q("#f-wd").value; const t = q("#f-time").value; const n = left(); const el = q("#f-plan");
+      if (wd === "" || !t) { el.className = "note note-warn"; el.textContent = "No weekly day and time yet: the student is saved with a package but no lessons. You can book them from the student page in one tap."; return; }
+      const ds = S.slotDates(Number(wd), t, n); el.className = "note note-info"; el.textContent = `Saving books ${n} lesson${n === 1 ? "" : "s"}: ${DOW_LONG[Number(wd)]}s ${fmt12(t)}, ${fmtDate(ds[0], "md")}${n > 1 ? ` – ${fmtDate(ds[n - 1], "md")}` : ""}. Nothing is sent to the family until you send the schedule.`; };
+    for (const id of ["#f-wd", "#f-time", "#f-left"]) q(id).addEventListener("input", plan); plan();
+    q("#f-save").addEventListener("click", () => { const p = readForm(root); const n = left(); const paid = q("#f-paid").checked; /* read everything first: any save (new family, student) re-renders the form */ if (!p.name) return (q("#f-err").textContent = "Name is required"); let fid = q("#f-fam").value; if (!fid) { if (!q("#nf-name").value || !q("#nf-pname").value || !q("#nf-email").value) return (q("#f-err").textContent = "Family name, parent name and parent email are required for a new family."); fid = S.newFamily(q("#nf-name").value, q("#nf-lang").value, q("#nf-pname").value, q("#nf-email").value, q("#nf-phone").value, q("#nf-sms").checked); } const id = S.saveStudent(null, { ...p, familyId: fid }); S.newSession(id, p.rateCents * 10, 0, { earlier: 10 - n, paid }); const made = S.bookFromSlot(id); toast(made ? `Student added · ${made} lessons booked` : "Student added · no lessons booked yet"); go(`/students/${id}${made ? `?booked=${made}` : ""}`); });
   } };
 }
 export function edit(route) {
