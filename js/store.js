@@ -68,7 +68,7 @@ export function recompute(s) {
 function lowBalance(s, silent) {
   for (const b of s.sessions) {
     const left = b.total - b.used;
-    if (b.status !== "active" || b.used === 0 || left > s.settings.lowBalanceThreshold || b.lowNotifiedAt) continue;
+    if (b.status !== "active" || b.used === (b.earlier ?? 0) || left > s.settings.lowBalanceThreshold || b.lowNotifiedAt) continue; // nothing used in the app yet (R25: an imported balance sends nothing)
     b.lowNotifiedAt = today();
     if (silent) continue;
     const st = s.students.find((x) => x.id === b.studentId); if (!st) continue;
