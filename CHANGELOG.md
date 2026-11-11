@@ -2,6 +2,7 @@
 
 Newest first. Format: date · screen id · what changed · who asked.
 
+- 2026-11-11 · teacher/student, teacher/today, teacher/calendar · one rule for every way of adding lessons (new student, "Book N lessons", Generate, a single lesson on the calendar, Find a time): adding sends nothing. The student page then shows "N new lessons · the family has not been told yet" with "Tell the family" (the message opens for review: Send, Copy for WeChat or Don't send) and "I already told them myself"; Today and the calendar name the students with untold lessons. The "Email + SMS the schedule" tick on Generate is gone, and "Send the schedule" under More is reviewed too · owner (spec R26)
 - 2026-11-11 · teacher/student-new, teacher/student · adding a student with a weekly day and time now starts the package and books its lessons on save (a line above the button says exactly what will be booked); "Lessons left in this package" (10 for a new student, fewer for one part-way through) and "Package is paid" sit on the same form; without a weekly time the student is saved without lessons and the student page shows one button to set the time and book; any student with nothing booked gets a "Book N lessons" button above the calendar; nothing is sent to the family until "Send the schedule" · owner (spec R25)
 
 - 2026-10-04 · teacher/notes · two modes above the button: "Transcribe only" (the teacher's words, verbatim, no AI) and "Organise my notes" (only what she said, sorted into sections, nothing invented; minutes left out when not stated) · teacher

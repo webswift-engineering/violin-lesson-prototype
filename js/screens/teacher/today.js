@@ -1,5 +1,5 @@
 import * as S from "../../store.js";
-import { esc, chip, statusChip, section, empty, calendarHtml, mountCalendar, openLessonSheet, openMoveConfirm, openAddLesson, openFindTime, openMoveLesson, openAttendanceReview, toast, loc } from "../../ui.js";
+import { esc, chip, statusChip, section, empty, calendarHtml, mountCalendar, openLessonSheet, openMoveConfirm, openAddLesson, openFindTime, openMoveLesson, openAttendanceReview, untoldBanner, toast, loc } from "../../ui.js";
 import { today, addDays, fmt12, fmtDate, isPast } from "../../dates.js";
 import { href, go } from "../../router.js";
 
@@ -21,6 +21,7 @@ export function render(route) {
   const weekLessons = S.lessonsBetween(addDays(weekAnchor, -7), addDays(weekAnchor, 14));
   const html = `<div class="page-h"><div><h1>Today</h1><div class="muted small mt1">${fmtDate(T, "long")} · ${loc(S.dayLocation(T))} day</div></div><a class="btn btn-outline btn-sm" href="${href("/calendar")}">Calendar</a></div>
     ${overdue.length ? `<div class="note note-warn mb3">${overdue.length} earlier lesson${overdue.length > 1 ? "s" : ""} still to mark: ${overdue.slice(0, 3).map((l) => `<a class="b" href="${href(`/lessons/${l.id}`)}">${esc(S.studentName(l.studentId))} ${fmtDate(l.date, "md")}</a>`).join(", ")}</div>` : ""}
+    ${untoldBanner()}
     ${todays.length ? `<div class="col3">${todays.map(lessonCard).join("")}</div>` : empty("No lessons today", "Enjoy the quiet.")}
     ${S.labOn("today_week") ? section("This week", calendarHtml({ view: "week", anchor: weekAnchor, basePath: "/today", lessons: weekLessons, chrome: "week-strip" }), `<a class="small brand" href="${href("/lessons")}">All lessons →</a>`) : section("Next 7 days", `<div class="card list">${S.lessonsBetween(addDays(T, 1), addDays(T, 8)).map((l) => `<a class="li" href="${href(`/lessons/${l.id}`)}"><span class="med">${esc(S.studentName(l.studentId))}</span><span class="muted small">${fmtDate(l.date)} · ${fmt12(l.time)}</span></a>`).join("") || `<div class="li muted small">Nothing scheduled.</div>`}</div>`, `<a class="small brand" href="${href("/lessons")}">All lessons →</a>`)}`;
   return { html, mount(root) {

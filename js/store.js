@@ -163,18 +163,18 @@ export function moveLesson(lessonId, date, time) {
   });
 }
 export function addLesson(studentId, date, time, durationMin, location) {
-  return mutate((s) => { const st = student(studentId); const l = { id: uid("l"), studentId, date, time, durationMin: durationMin || st.durationMin, location: location || st.location, feeCents: st.rateCents, status: "scheduled", note: null, summarySentAt: null, planned: [], covered: [] }; s.lessons.push(l); return l; });
+  return mutate((s) => { const st = student(studentId); const l = { id: uid("l"), studentId, date, time, durationMin: durationMin || st.durationMin, location: location || st.location, feeCents: st.rateCents, status: "scheduled", note: null, summarySentAt: null, planned: [], covered: [], untold: true }; s.lessons.push(l); return l; });
 }
 export function deleteLesson(lessonId) { mutate((s) => { s.lessons = s.lessons.filter((l) => l.id !== lessonId); }); }
-export function generateLessons(studentId, count, from, notify) {
+/** R26: adds the lessons and sends nothing; they stay "untold" until the teacher tells the family. */
+export function generateLessons(studentId, count, from) {
   return mutate((s) => {
     const st = student(studentId); let d = from; let made = 0;
     while (weekday(d) !== st.weekday) d = addDays(d, 1);
     for (; made < count; d = addDays(d, 7)) {
       if (s.lessons.some((l) => l.studentId === studentId && l.date === d && l.status === "scheduled")) continue;
-      s.lessons.push({ id: uid("l"), studentId, date: d, time: st.time, durationMin: st.durationMin, location: st.location, feeCents: st.rateCents, status: "scheduled", note: null, summarySentAt: null, planned: [], covered: [] }); made++;
+      s.lessons.push({ id: uid("l"), studentId, date: d, time: st.time, durationMin: st.durationMin, location: st.location, feeCents: st.rateCents, status: "scheduled", note: null, summarySentAt: null, planned: [], covered: [], untold: true }); made++;
     }
-    if (notify) notifyFamily(st.familyId, "schedule_published", `${st.name}'s lesson schedule`, `${st.name} 的课程安排`, null, true);
     return made;
   });
 }
@@ -195,7 +195,7 @@ export function bookFromSlot(studentId) {
   const st = student(studentId); if (!st || st.weekday === null || !st.time) return 0;
   if (!activeSession(studentId)) newSession(studentId, st.rateCents * 10);
   const open = openToBook(studentId); if (!open) return 0;
-  return generateLessons(studentId, open, slotDates(st.weekday, st.time, 1)[0], false);
+  return generateLessons(studentId, open, slotDates(st.weekday, st.time, 1)[0]);
 }
 /** The post-lesson email without notes, after the teacher reviewed it (owner decision 2026-10-01: reviewed, not automatic). */
 export function sendSummary(lessonId, { text, wechat = false } = {}) {
@@ -286,6 +286,29 @@ export function draft(kind, { lesson: l, from = null, to = null, note = "" }) {
       : (zh ? [`课堂总结：${st.name} ${when(l.date, l.time)}`, `${hi}${st.name} ${when(l.date, l.time)} 的课已上完。课包还剩 ${bal.remaining} 节（共 ${bal.total} 节）。${extra}`] : [`${st.name}'s lesson · ${when(l.date, l.time)}`, `${hi} ${st.name} attended the lesson on ${when(l.date, l.time)}. ${bal.remaining} of ${bal.total} lessons left in the package.${extra}`])),
   }[kind]();
   return { lang: fam.language, subject: T[0], text: `${T[1]}\n${sign}` };
+}
+
+// ---------- R26: lessons the family has not been told about ----------
+const upcomingScheduled = (studentId) => state.lessons.filter((l) => l.studentId === studentId && l.status === "scheduled" && l.date >= today()).sort(cmp);
+/** Upcoming lessons the teacher added and the family has not heard about yet. */
+export function untoldLessons(studentId) { return upcomingScheduled(studentId).filter((l) => l.untold); }
+/** Active students with untold lessons, for the banner on Today and the calendar. */
+export function untoldByStudent() { return state.students.filter((s) => s.active).map((s) => ({ student: s, lessons: untoldLessons(s.id) })).filter((x) => x.lessons.length); }
+/** The family knows about exactly these lessons now (sent, copied for WeChat, or the teacher says she told them herself). */
+export function markTold(lessonIds) { const ids = new Set(lessonIds); mutate((s) => { for (const l of s.lessons) if (ids.has(l.id)) delete l.untold; }); }
+/** The message the teacher reviews: only the new lessons, or the whole upcoming schedule (`all`, also used when every upcoming lesson is new). */
+export function scheduleDraft(studentId, { all = false } = {}) {
+  const st = student(studentId); const fam = family(st.familyId); const zh = fam.language === "zh";
+  const up = upcomingScheduled(studentId); const fresh = up.filter((l) => l.untold); const whole = all || fresh.length === up.length; const ls = whole ? up : fresh;
+  const p = parentsOf(fam.id)[0]; const hi = zh ? `${p?.name ?? ""}您好，` : `Hi ${(p?.name ?? "").split(" ")[0]},`;
+  const sign = zh ? `—— ${state.settings.teacherName}` : `— ${state.settings.teacherName}`;
+  const lines = ls.map((l) => `• ${fmtDateTime(l.date, l.time, zh ? "zh" : "en")}`).join("\n");
+  const n = ls.length;
+  const [subject, intro] = whole
+    ? (zh ? [`${st.name} 的课程安排`, `${hi}${st.name} 接下来的 ${n} 节课安排如下：`] : [`${st.name}'s lesson schedule`, `${hi} here ${n === 1 ? "is" : "are"} ${st.name}'s next ${n === 1 ? "lesson" : `${n} lessons`}:`])
+    : (zh ? [`${st.name} 新增了 ${n} 节课`, `${hi}${st.name} 新增了 ${n} 节课：`] : [`${n === 1 ? "A new lesson" : `${n} new lessons`} for ${st.name}`, `${hi} I have added ${n === 1 ? "a lesson" : `${n} lessons`} for ${st.name}:`]);
+  const tail = zh ? "如需调整，请在家长门户里申请改期。" : "If a date does not work, please ask for a change in the portal.";
+  return { lang: fam.language, subject, text: `${intro}\n${lines}\n${tail}\n${sign}`, count: n, lessonIds: ls.map((l) => l.id) };
 }
 
 // ---------- pauses ----------

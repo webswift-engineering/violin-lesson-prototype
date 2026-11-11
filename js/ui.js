@@ -132,7 +132,7 @@ export function openAddLesson(day, lockStudent, onChanged) {
     const q = (id) => root.querySelector(id); const upd = () => { q("#ad-check").innerHTML = slotHtml(S.checkSlot({ date: q("#ad-date").value, time: q("#ad-time").value, durationMin: Number(q("#ad-dur").value), location: q("#ad-loc").value })); };
     ["#ad-date", "#ad-time", "#ad-dur", "#ad-loc"].forEach((id) => q(id).addEventListener("input", upd)); upd();
     q("#ad-st")?.addEventListener("change", () => { const s = S.student(q("#ad-st").value); q("#ad-time").value = s.time ?? "16:00"; q("#ad-dur").value = s.durationMin; q("#ad-loc").value = s.location; upd(); });
-    q("#ad-go").addEventListener("click", () => { const sid = lockStudent ? lockStudent.id : q("#ad-st").value; S.addLesson(sid, q("#ad-date").value, q("#ad-time").value, Number(q("#ad-dur").value), q("#ad-loc").value); toast(`Added ${S.studentName(sid)} · ${fmtDate(q("#ad-date").value)} ${fmt12(q("#ad-time").value)}`); closeSheet(); onChanged?.(); });
+    q("#ad-go").addEventListener("click", () => { const sid = lockStudent ? lockStudent.id : q("#ad-st").value; S.addLesson(sid, q("#ad-date").value, q("#ad-time").value, Number(q("#ad-dur").value), q("#ad-loc").value); toast(`Added ${S.studentName(sid)} · ${fmtDate(q("#ad-date").value)} ${fmt12(q("#ad-time").value)} · family not told yet`); closeSheet(); onChanged?.(); });
   });
 }
 /** "Move a lesson": pick the lesson (and the student when not locked), then date + time with the slot check and suggestions. */
@@ -180,13 +180,27 @@ export function openReview({ title = "Message to the parent", familyId, draft, e
     root.querySelector("#rv-skip").addEventListener("click", () => { closeSheet(); toast("Not sent · the parent has not been told", "warn"); onDone?.("skipped"); });
   });
 }
+/**
+ * R26: adding lessons never sends anything. This opens the reviewed message about a student's new lessons
+ * (`all` = the whole upcoming schedule); Send or Copy for WeChat marks them as told, Don't send leaves the notice up.
+ */
+export function openTellFamily(studentId, { all = false, onDone = null } = {}) {
+  const st = S.student(studentId); const d = S.scheduleDraft(studentId, { all });
+  if (!d.count) return toast("No upcoming lessons to send", "warn");
+  openReview({ title: all ? "Send the schedule" : "Tell the family", familyId: st.familyId, event: "schedule_published", sms: true, draft: d, onDone: (how) => { if (how !== "skipped") S.markTold(d.lessonIds); onDone?.(how); } });
+}
+/** R26: on Today and the calendar, who has new lessons the family has not heard about. */
+export function untoldBanner() {
+  const rows = S.untoldByStudent(); if (!rows.length) return "";
+  return `<div class="note note-warn mb3">New lessons the family has not been told about: ${rows.map(({ student: s, lessons: ls }) => `<a class="b" href="${href(`/students/${s.id}`)}">${esc(s.name)} (${ls.length})</a>`).join(", ")}. Open the student to check the message and send it.</div>`;
+}
 /** Move, then (when asked) show the parent's message for review. */
 export function moveWithReview(l, date, time, { note = "", tell = true, onChanged = null } = {}) {
   const from = { date: l.date, time: l.time }; const st = S.student(l.studentId);
   const nl = S.moveLesson(l.id, date, time);
   if (nl?.error) return toast(nl.error, "warn");
   if (!tell) { toast(`${st.name} moved to ${fmtDate(date)} ${fmt12(time)} · parent not told`); onChanged?.(nl); return nl; }
-  openReview({ title: "Tell the parent", familyId: st.familyId, event: "reschedule_approved", lessonId: nl.id, sms: true, draft: S.draft("moved", { lesson: nl, from, to: { date, time }, note }), onDone: () => onChanged?.(nl) });
+  openReview({ title: "Tell the parent", familyId: st.familyId, event: "reschedule_approved", lessonId: nl.id, sms: true, draft: S.draft("moved", { lesson: nl, from, to: { date, time }, note }), onDone: (how) => { if (how !== "skipped") S.markTold([nl.id]); /* R26: the move message carries the new time */ onChanged?.(nl); } });
   return nl;
 }
 /** The post-lesson email without notes, reviewed first. */
@@ -199,7 +213,7 @@ export function openFindTime(lockStudent, onChanged) {
   const students = lockStudent ? [lockStudent] : S.get().students.filter((s) => s.active); const T = today();
   openSheet("Find a time", `<div class="col"><div>${field("Student", lockStudent ? `<div class="input ro">${esc(lockStudent.name)}</div>` : `<select class="input" id="ft-st">${students.map((s) => `<option value="${s.id}">${esc(s.name)}</option>`).join("")}</select>`)}</div><div class="grid3">${field("From", `<input class="input" type="date" id="ft-from" value="${T}">`)}${field("To", `<input class="input" type="date" id="ft-to" value="${addDays(T, 14)}">`)}${field("Location", `<select class="input" id="ft-loc">${Object.entries(LOCATION_LABEL).map(([k, v]) => `<option value="${k}" ${students[0]?.location === k ? "selected" : ""}>${v}</option>`).join("")}</select>`)}</div><button class="btn btn-primary w" id="ft-go">Find times</button><div id="ft-out"></div><p class="xs muted">Ranked by: no conflict, matches your location plan that day, close to the student's usual slot, fewest location switches, earliest.</p></div>`, (root) => {
     const q = (id) => root.querySelector(id);
-    q("#ft-go").addEventListener("click", () => { const sid = lockStudent ? lockStudent.id : q("#ft-st").value; const sugg = S.suggestSlots(sid, q("#ft-from").value, q("#ft-to").value, q("#ft-loc").value, 8); q("#ft-out").innerHTML = suggestionList(sugg, (g, i) => `<button class="btn btn-outline btn-sm" data-i="${i}">Add</button>`); q("#ft-out").querySelectorAll("[data-i]").forEach((b) => b.addEventListener("click", () => { const g = sugg[Number(b.dataset.i)]; S.addLesson(sid, g.date, g.time, null, q("#ft-loc").value); toast(`Added ${fmtDate(g.date)} ${fmt12(g.time)}`); closeSheet(); onChanged?.(); })); });
+    q("#ft-go").addEventListener("click", () => { const sid = lockStudent ? lockStudent.id : q("#ft-st").value; const sugg = S.suggestSlots(sid, q("#ft-from").value, q("#ft-to").value, q("#ft-loc").value, 8); q("#ft-out").innerHTML = suggestionList(sugg, (g, i) => `<button class="btn btn-outline btn-sm" data-i="${i}">Add</button>`); q("#ft-out").querySelectorAll("[data-i]").forEach((b) => b.addEventListener("click", () => { const g = sugg[Number(b.dataset.i)]; S.addLesson(sid, g.date, g.time, null, q("#ft-loc").value); toast(`Added ${fmtDate(g.date)} ${fmt12(g.time)} · family not told yet`); closeSheet(); onChanged?.(); })); });
   });
 }
 
