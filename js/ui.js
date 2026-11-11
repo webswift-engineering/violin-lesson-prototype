@@ -187,7 +187,7 @@ export function openReview({ title = "Message to the parent", familyId, draft, e
 export function openTellFamily(studentId, { all = false, onDone = null } = {}) {
   const st = S.student(studentId); const d = S.scheduleDraft(studentId, { all });
   if (!d.count) return toast("No upcoming lessons to send", "warn");
-  openReview({ title: all ? "Send the schedule" : "Tell the family", familyId: st.familyId, event: "schedule_published", sms: true, draft: d, onDone: (how) => { if (how !== "skipped") S.markTold(studentId); onDone?.(how); } });
+  openReview({ title: all ? "Send the schedule" : "Tell the family", familyId: st.familyId, event: "schedule_published", sms: true, draft: d, onDone: (how) => { if (how !== "skipped") S.markTold(d.lessonIds); onDone?.(how); } });
 }
 /** R26: on Today and the calendar, who has new lessons the family has not heard about. */
 export function untoldBanner() {
@@ -200,7 +200,7 @@ export function moveWithReview(l, date, time, { note = "", tell = true, onChange
   const nl = S.moveLesson(l.id, date, time);
   if (nl?.error) return toast(nl.error, "warn");
   if (!tell) { toast(`${st.name} moved to ${fmtDate(date)} ${fmt12(time)} · parent not told`); onChanged?.(nl); return nl; }
-  openReview({ title: "Tell the parent", familyId: st.familyId, event: "reschedule_approved", lessonId: nl.id, sms: true, draft: S.draft("moved", { lesson: nl, from, to: { date, time }, note }), onDone: () => onChanged?.(nl) });
+  openReview({ title: "Tell the parent", familyId: st.familyId, event: "reschedule_approved", lessonId: nl.id, sms: true, draft: S.draft("moved", { lesson: nl, from, to: { date, time }, note }), onDone: (how) => { if (how !== "skipped") S.markTold([nl.id]); /* R26: the move message carries the new time */ onChanged?.(nl); } });
   return nl;
 }
 /** The post-lesson email without notes, reviewed first. */

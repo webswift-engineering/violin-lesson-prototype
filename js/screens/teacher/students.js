@@ -79,7 +79,7 @@ export function detail(route) {
     q("#book-slot")?.addEventListener("click", () => { const n = S.bookFromSlot(s.id); toast(`${n} lessons booked`); go(`/students/${s.id}`); });
     q("#set-slot")?.addEventListener("click", () => openSheet("Weekly time", `<div class="col"><div class="grid2">${field("Day", `<select class="input" id="ws-wd">${DOW_LONG.map((d, i) => `<option value="${i}">${d}</option>`).join("")}</select>`)}${field("Time", `<input class="input" id="ws-time" type="time" value="16:00">`)}</div><button class="btn btn-primary w" id="ws-go">Save and book ${toBook} lesson${toBook === 1 ? "" : "s"}</button></div>`, (sh) => sh.querySelector("#ws-go").addEventListener("click", () => { const t = sh.querySelector("#ws-time").value; if (!t) return toast("Pick a time", "warn"); S.saveStudent(s.id, { weekday: Number(sh.querySelector("#ws-wd").value), time: t }); const n = S.bookFromSlot(s.id); closeSheet(); toast(`${n} lessons booked`); go(`/students/${s.id}`); })));
     q("#tell-fam")?.addEventListener("click", () => openTellFamily(s.id));
-    q("#told-fam")?.addEventListener("click", () => { S.markTold(s.id); toast("Marked as told · nothing sent"); });
+    q("#told-fam")?.addEventListener("click", () => { S.markTold(untold.map((l) => l.id)); toast("Marked as told · nothing sent"); });
   } };
 }
 

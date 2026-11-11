@@ -294,8 +294,8 @@ const upcomingScheduled = (studentId) => state.lessons.filter((l) => l.studentId
 export function untoldLessons(studentId) { return upcomingScheduled(studentId).filter((l) => l.untold); }
 /** Active students with untold lessons, for the banner on Today and the calendar. */
 export function untoldByStudent() { return state.students.filter((s) => s.active).map((s) => ({ student: s, lessons: untoldLessons(s.id) })).filter((x) => x.lessons.length); }
-/** The family knows now (sent, copied for WeChat, or the teacher says she told them herself). */
-export function markTold(studentId) { mutate((s) => { for (const l of s.lessons) if (l.studentId === studentId) delete l.untold; }); }
+/** The family knows about exactly these lessons now (sent, copied for WeChat, or the teacher says she told them herself). */
+export function markTold(lessonIds) { const ids = new Set(lessonIds); mutate((s) => { for (const l of s.lessons) if (ids.has(l.id)) delete l.untold; }); }
 /** The message the teacher reviews: only the new lessons, or the whole upcoming schedule (`all`, also used when every upcoming lesson is new). */
 export function scheduleDraft(studentId, { all = false } = {}) {
   const st = student(studentId); const fam = family(st.familyId); const zh = fam.language === "zh";
@@ -308,7 +308,7 @@ export function scheduleDraft(studentId, { all = false } = {}) {
     ? (zh ? [`${st.name} 的课程安排`, `${hi}${st.name} 接下来的 ${n} 节课安排如下：`] : [`${st.name}'s lesson schedule`, `${hi} here ${n === 1 ? "is" : "are"} ${st.name}'s next ${n === 1 ? "lesson" : `${n} lessons`}:`])
     : (zh ? [`${st.name} 新增了 ${n} 节课`, `${hi}${st.name} 新增了 ${n} 节课：`] : [`${n === 1 ? "A new lesson" : `${n} new lessons`} for ${st.name}`, `${hi} I have added ${n === 1 ? "a lesson" : `${n} lessons`} for ${st.name}:`]);
   const tail = zh ? "如需调整，请在家长门户里申请改期。" : "If a date does not work, please ask for a change in the portal.";
-  return { lang: fam.language, subject, text: `${intro}\n${lines}\n${tail}\n${sign}`, count: n };
+  return { lang: fam.language, subject, text: `${intro}\n${lines}\n${tail}\n${sign}`, count: n, lessonIds: ls.map((l) => l.id) };
 }
 
 // ---------- pauses ----------
