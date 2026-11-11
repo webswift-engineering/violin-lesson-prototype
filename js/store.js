@@ -295,9 +295,15 @@ export function untoldLessons(studentId) { return upcomingScheduled(studentId).f
 /** Active students with untold lessons, for the banner on Today and the calendar. */
 export function untoldByStudent() { return state.students.filter((s) => s.active).map((s) => ({ student: s, lessons: untoldLessons(s.id) })).filter((x) => x.lessons.length); }
 /** The family knows about exactly these lessons now (sent, copied for WeChat, or the teacher says she told them herself). */
-export function markTold(lessonIds) { const ids = new Set(lessonIds); mutate((s) => { for (const l of s.lessons) if (ids.has(l.id)) delete l.untold; }); }
+export function markTold(lessonIds) { const ids = new Set(lessonIds); mutate((s) => { for (const l of s.lessons) if (ids.has(l.id)) { delete l.untold; delete l.untoldFrom; } }); }
 /** A teacher move the family has not heard about yet (a lesson that is new and untold stays "new", at its new time). */
-export function markUntoldMove(lessonId) { mutate((s) => { const l = s.lessons.find((x) => x.id === lessonId); if (l && l.untold !== true) l.untold = "moved"; }); }
+export function markUntoldMove(lessonId) {
+  mutate((s) => {
+    const l = s.lessons.find((x) => x.id === lessonId); if (!l || l.untold === true) return;
+    l.untoldFrom ??= l.movedFrom; // the time the family last heard about; kept across several untold moves (A → B → C reads "A has moved to C")
+    if (l.untoldFrom === `${l.date} ${l.time}`) { delete l.untold; delete l.untoldFrom; } else l.untold = "moved"; // moved back to where they think it is: nothing to tell
+  });
+}
 /**
  * The message the teacher reviews: everything the family has not been told, new lessons and moved lessons together
  * (or the whole upcoming schedule: `all`, also used when every upcoming lesson is new).
@@ -310,7 +316,7 @@ export function scheduleDraft(studentId, { all = false } = {}) {
   const sign = zh ? `—— ${state.settings.teacherName}` : `— ${state.settings.teacherName}`;
   const tail = zh ? "如需调整，请在家长门户里申请改期。" : "If a date does not work, please ask for a change in the portal.";
   const line = (l) => `• ${fmtDateTime(l.date, l.time, lang)}`;
-  const movedLine = (l) => { const [d, t] = l.movedFrom.split(" "); return zh ? `• 原定 ${fmtDateTime(d, t, lang)} 改到 ${fmtDateTime(l.date, l.time, lang)}` : `• ${fmtDateTime(d, t, lang)} has moved to ${fmtDateTime(l.date, l.time, lang)}`; };
+  const movedLine = (l) => { const [d, t] = (l.untoldFrom ?? l.movedFrom).split(" "); return zh ? `• 原定 ${fmtDateTime(d, t, lang)} 改到 ${fmtDateTime(l.date, l.time, lang)}` : `• ${fmtDateTime(d, t, lang)} has moved to ${fmtDateTime(l.date, l.time, lang)}`; };
   const les = (n) => (n === 1 ? "lesson" : "lessons");
   if (whole) {
     const n = up.length;
