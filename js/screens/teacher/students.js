@@ -41,11 +41,13 @@ export function detail(route) {
 
   // R25: a calendar is never left empty without a way out
   const hasSlot = s.weekday !== null && !!s.time; const toBook = S.openToBook(s.id); const slotText = hasSlot ? `${DOW_LONG[s.weekday]}s ${fmt12(s.time)}` : "";
-  // R26: lessons the teacher added that the family has not heard about; nothing was sent when they were added
+  // R26: lessons the teacher added or moved that the family has not heard about, told together in one message
   const untold = S.untoldLessons(s.id); const soon = untold.filter((l) => l.date <= addDays(T, 1)).length;
+  const nNew = untold.filter((l) => l.untold === true).length; const nMoved = untold.length - nNew; const pl = (n, w) => `${n} ${w} lesson${n === 1 ? "" : "s"}`;
+  const untoldWhat = [nNew ? pl(nNew, "new") : "", nMoved ? pl(nMoved, "moved") : ""].filter(Boolean).join(" and ");
   const untoldDates = untold.length <= 3 ? untold.map((l) => `${fmtDate(l.date, "md")} ${fmt12(l.time)}`).join(", ") : `${fmtDate(untold[0].date, "md")} – ${fmtDate(untold[untold.length - 1].date, "md")}`;
   const bookNote = untold.length
-    ? `<div class="note note-warn mt3 col"><span><b>${untold.length} new lesson${untold.length === 1 ? "" : "s"}</b> (${untoldDates}). The family has not been told yet.${soon ? ` ${soon === 1 ? "One is" : `${soon} are`} today or tomorrow, so the automatic reminder may not reach them in time.` : ""}</span><button class="btn btn-primary" id="tell-fam">Tell the family · you check the message first</button><button class="link xs" id="told-fam">I already told them myself</button></div>`
+    ? `<div class="note note-warn mt3 col"><span><b>${untoldWhat}</b> (${untoldDates}). The family has not been told yet.${soon ? ` ${soon === 1 ? "One is" : `${soon} are`} today or tomorrow, so the automatic reminder may not reach them in time.` : ""}</span><button class="btn btn-primary" id="tell-fam">Tell the family · ${untold.length === 1 ? "you check the message first" : "one message, you check it first"}</button><button class="link xs" id="told-fam">I already told them myself</button></div>`
     : s.active && !upcoming.length && toBook > 0
       ? `<div class="note note-warn mt3 col"><span>No lessons booked${active ? ` · ${toBook} still to book in package #${active.seq}` : " · no active package"}.</span>${hasSlot ? `<button class="btn btn-primary" id="book-slot">Book ${toBook} lesson${toBook === 1 ? "" : "s"} · ${slotText}</button>` : `<button class="btn btn-primary" id="set-slot">Set the weekly time and book ${toBook} lesson${toBook === 1 ? "" : "s"}</button>`}</div>`
       : "";
