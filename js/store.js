@@ -290,25 +290,41 @@ export function draft(kind, { lesson: l, from = null, to = null, note = "" }) {
 
 // ---------- R26: lessons the family has not been told about ----------
 const upcomingScheduled = (studentId) => state.lessons.filter((l) => l.studentId === studentId && l.status === "scheduled" && l.date >= today()).sort(cmp);
-/** Upcoming lessons the teacher added and the family has not heard about yet. */
+/** Upcoming lessons the family has not heard about yet: `untold` is true for a lesson the teacher added, "moved" for one she moved without telling them. */
 export function untoldLessons(studentId) { return upcomingScheduled(studentId).filter((l) => l.untold); }
 /** Active students with untold lessons, for the banner on Today and the calendar. */
 export function untoldByStudent() { return state.students.filter((s) => s.active).map((s) => ({ student: s, lessons: untoldLessons(s.id) })).filter((x) => x.lessons.length); }
 /** The family knows about exactly these lessons now (sent, copied for WeChat, or the teacher says she told them herself). */
 export function markTold(lessonIds) { const ids = new Set(lessonIds); mutate((s) => { for (const l of s.lessons) if (ids.has(l.id)) delete l.untold; }); }
-/** The message the teacher reviews: only the new lessons, or the whole upcoming schedule (`all`, also used when every upcoming lesson is new). */
+/** A teacher move the family has not heard about yet (a lesson that is new and untold stays "new", at its new time). */
+export function markUntoldMove(lessonId) { mutate((s) => { const l = s.lessons.find((x) => x.id === lessonId); if (l && l.untold !== true) l.untold = "moved"; }); }
+/**
+ * The message the teacher reviews: everything the family has not been told, new lessons and moved lessons together
+ * (or the whole upcoming schedule: `all`, also used when every upcoming lesson is new).
+ */
 export function scheduleDraft(studentId, { all = false } = {}) {
-  const st = student(studentId); const fam = family(st.familyId); const zh = fam.language === "zh";
-  const up = upcomingScheduled(studentId); const fresh = up.filter((l) => l.untold); const whole = all || fresh.length === up.length; const ls = whole ? up : fresh;
+  const st = student(studentId); const fam = family(st.familyId); const zh = fam.language === "zh"; const lang = zh ? "zh" : "en";
+  const up = upcomingScheduled(studentId); const fresh = up.filter((l) => l.untold === true); const moved = up.filter((l) => l.untold === "moved");
+  const whole = all || (fresh.length === up.length && fresh.length > 0);
   const p = parentsOf(fam.id)[0]; const hi = zh ? `${p?.name ?? ""}您好，` : `Hi ${(p?.name ?? "").split(" ")[0]},`;
   const sign = zh ? `—— ${state.settings.teacherName}` : `— ${state.settings.teacherName}`;
-  const lines = ls.map((l) => `• ${fmtDateTime(l.date, l.time, zh ? "zh" : "en")}`).join("\n");
-  const n = ls.length;
-  const [subject, intro] = whole
-    ? (zh ? [`${st.name} 的课程安排`, `${hi}${st.name} 接下来的 ${n} 节课安排如下：`] : [`${st.name}'s lesson schedule`, `${hi} here ${n === 1 ? "is" : "are"} ${st.name}'s next ${n === 1 ? "lesson" : `${n} lessons`}:`])
-    : (zh ? [`${st.name} 新增了 ${n} 节课`, `${hi}${st.name} 新增了 ${n} 节课：`] : [`${n === 1 ? "A new lesson" : `${n} new lessons`} for ${st.name}`, `${hi} I have added ${n === 1 ? "a lesson" : `${n} lessons`} for ${st.name}:`]);
   const tail = zh ? "如需调整，请在家长门户里申请改期。" : "If a date does not work, please ask for a change in the portal.";
-  return { lang: fam.language, subject, text: `${intro}\n${lines}\n${tail}\n${sign}`, count: n, lessonIds: ls.map((l) => l.id) };
+  const line = (l) => `• ${fmtDateTime(l.date, l.time, lang)}`;
+  const movedLine = (l) => { const [d, t] = l.movedFrom.split(" "); return zh ? `• 原定 ${fmtDateTime(d, t, lang)} 改到 ${fmtDateTime(l.date, l.time, lang)}` : `• ${fmtDateTime(d, t, lang)} has moved to ${fmtDateTime(l.date, l.time, lang)}`; };
+  const les = (n) => (n === 1 ? "lesson" : "lessons");
+  if (whole) {
+    const n = up.length;
+    const [subject, intro] = zh ? [`${st.name} 的课程安排`, `${hi}${st.name} 接下来的 ${n} 节课安排如下：`] : [`${st.name}'s lesson schedule`, `${hi} here ${n === 1 ? "is" : "are"} ${st.name}'s next ${n === 1 ? "lesson" : `${n} lessons`}:`];
+    return { lang: fam.language, subject, text: `${intro}\n${up.map(line).join("\n")}\n${tail}\n${sign}`, count: n, lessonIds: up.map((l) => l.id) };
+  }
+  const nf = fresh.length, nm = moved.length; const parts = [];
+  if (nf) parts.push(`${zh ? `新增 ${nf} 节课：` : `${nf === 1 ? "New lesson" : `${nf} new lessons`}:`}\n${fresh.map(line).join("\n")}`);
+  if (nm) parts.push(`${zh ? `${nm} 节课改了时间：` : `${nm === 1 ? "Moved lesson" : `${nm} moved lessons`}:`}\n${moved.map(movedLine).join("\n")}`);
+  const subject = nf && nm ? (zh ? `${st.name} 的课程有变动` : `Changes to ${st.name}'s lessons`)
+    : nm ? (zh ? `${st.name} 有 ${nm} 节课改了时间` : `${nm === 1 ? "A lesson has" : `${nm} lessons have`} moved for ${st.name}`)
+    : (zh ? `${st.name} 新增了 ${nf} 节课` : `${nf === 1 ? "A new lesson" : `${nf} new lessons`} for ${st.name}`);
+  const intro = zh ? `${hi}${st.name} 的课程有以下变动。` : `${hi} here ${nf + nm === 1 ? "is a change" : "are the changes"} to ${st.name}'s ${les(2)}.`;
+  return { lang: fam.language, subject, text: `${intro}\n${parts.join("\n")}\n${tail}\n${sign}`, count: nf + nm, lessonIds: [...fresh, ...moved].map((l) => l.id) };
 }
 
 // ---------- pauses ----------
