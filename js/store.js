@@ -41,11 +41,11 @@ export function recompute(s) {
     const mine = s.lessons.filter((l) => l.studentId === st.id);
     const live = mine.filter((l) => l.status !== "cancelled" && l.status !== "rescheduled").sort(cmp);
     for (const l of mine) if (!live.includes(l) || !ids.has(l.sessionId)) l.sessionId = null;
-    const count = Object.fromEntries(sessions.map((b) => [b.id, 0]));
+    const count = Object.fromEntries(sessions.map((b) => [b.id, b.earlier ?? 0])); // R25: lessons taken before the app hold their place
     for (const l of live) if (l.sessionId) { const b = sessions.find((x) => x.id === l.sessionId); if (count[b.id] < b.total) count[b.id]++; else l.sessionId = null; }
     for (const l of live) if (!l.sessionId) { const b = sessions.find((x) => count[x.id] < x.total); if (!b) break; l.sessionId = b.id; count[b.id]++; }
     for (const b of sessions) {
-      b.used = live.filter((l) => l.sessionId === b.id && CONSUMES(l.status)).length;
+      b.used = (b.earlier ?? 0) + live.filter((l) => l.sessionId === b.id && CONSUMES(l.status)).length;
       b.status = b.used >= b.total ? "completed" : "active";
       if (b.status === "completed" && !b.completedAt) b.completedAt = today();
       if (b.status === "active") b.completedAt = null;
@@ -178,6 +178,25 @@ export function generateLessons(studentId, count, from, notify) {
     return made;
   });
 }
+/** R25: the next `count` dates of a weekly slot, starting today when today's slot is still ahead. */
+export function slotDates(wd, time, count) {
+  const T = today(); let d = weekday(T) === wd && time > nowTime() ? T : addDays(T, 1);
+  while (weekday(d) !== wd) d = addDays(d, 1);
+  return Array.from({ length: Math.max(0, count) }, (_, i) => addDays(d, 7 * i));
+}
+/** R25: how many lessons "Book" would add: the active package's lessons that are neither used nor booked (a full package when there is none). */
+export function openToBook(studentId) {
+  const b = activeSession(studentId); if (!b) return 10;
+  const booked = lessonsOf(studentId).filter((l) => l.sessionId === b.id && l.status === "scheduled").length;
+  return Math.max(0, b.total - b.used - booked);
+}
+/** R25: book the open lessons of the active package from the weekly slot; opens a package first when there is none. No message goes out. */
+export function bookFromSlot(studentId) {
+  const st = student(studentId); if (!st || st.weekday === null || !st.time) return 0;
+  if (!activeSession(studentId)) newSession(studentId, st.rateCents * 10);
+  const open = openToBook(studentId); if (!open) return 0;
+  return generateLessons(studentId, open, slotDates(st.weekday, st.time, 1)[0], false);
+}
 /** The post-lesson email without notes, after the teacher reviewed it (owner decision 2026-10-01: reviewed, not automatic). */
 export function sendSummary(lessonId, { text, wechat = false } = {}) {
   const l = lesson(lessonId); const st = student(l.studentId); const d = draft("attendance", { lesson: l });
@@ -213,7 +232,7 @@ export function previousFinalNotes(lessonId) {
 
 // ---------- packages ----------
 export function togglePaid(sessionId) { mutate((s) => { const b = s.sessions.find((x) => x.id === sessionId); b.paid = !b.paid; b.paidAt = b.paid ? today() : null; if (b.paid) { const st = student(b.studentId); notifyFamily(st.familyId, "session_paid", `Receipt: package #${b.seq} for ${st.name}`, `收据：${st.name} 第 ${b.seq} 期课包`); } }); }
-export function newSession(studentId, priceCents, alreadyUsed = 0) { mutate((s) => { const last = sessionsOf(studentId).slice(-1)[0]; s.sessions.push({ id: uid("b"), studentId, seq: (last?.seq ?? 0) + 1, total: 10, priceCents, paid: false, paidAt: null, startedAt: today(), parentSummary: null }); for (let i = 0; i < alreadyUsed; i++) s.lessons.push({ id: uid("l"), studentId, date: addDays(today(), -7 * (alreadyUsed - i)), time: "12:00", durationMin: 45, location: "online", feeCents: 0, status: "completed", note: "Backfilled", summarySentAt: "backfill", planned: [], covered: [] }); }); }
+export function newSession(studentId, priceCents, alreadyUsed = 0, { earlier = 0, paid = false } = {}) { mutate((s) => { const last = sessionsOf(studentId).slice(-1)[0]; s.sessions.push({ id: uid("b"), studentId, seq: (last?.seq ?? 0) + 1, total: 10, priceCents, paid, paidAt: paid ? today() : null, startedAt: today(), parentSummary: null, earlier }); for (let i = 0; i < alreadyUsed; i++) s.lessons.push({ id: uid("l"), studentId, date: addDays(today(), -7 * (alreadyUsed - i)), time: "12:00", durationMin: 45, location: "online", feeCents: 0, status: "completed", note: "Backfilled", summarySentAt: "backfill", planned: [], covered: [] }); }); }
 export function backfill(studentId, date, time, status) { mutate((s) => { const st = student(studentId); s.lessons.push({ id: uid("l"), studentId, date, time, durationMin: st.durationMin, location: st.location, feeCents: st.rateCents, status, note: "Backfilled", summarySentAt: "backfill", planned: [], covered: [] }); }); }
 
 // ---------- requests ----------
