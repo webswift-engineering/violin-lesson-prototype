@@ -181,25 +181,26 @@ export function openReview({ title = "Message to the parent", familyId, draft, e
   });
 }
 /**
- * R26: adding lessons never sends anything. This opens the reviewed message about a student's new lessons
+ * R26: adding lessons never sends anything. This opens the reviewed message about a student's new and moved lessons
  * (`all` = the whole upcoming schedule); Send or Copy for WeChat marks them as told, Don't send leaves the notice up.
  */
 export function openTellFamily(studentId, { all = false, onDone = null } = {}) {
   const st = S.student(studentId); const d = S.scheduleDraft(studentId, { all });
-  if (!d.count) return toast("No upcoming lessons to send", "warn");
+  if (!d.count) return toast(all ? "No upcoming lessons to send" : "Nothing new to tell the family", "warn");
   openReview({ title: all ? "Send the schedule" : "Tell the family", familyId: st.familyId, event: "schedule_published", sms: true, draft: d, onDone: (how) => { if (how !== "skipped") S.markTold(d.lessonIds); onDone?.(how); } });
 }
-/** R26: on Today and the calendar, who has new lessons the family has not heard about. */
+/** R26: on Today and the calendar, who has new or moved lessons the family has not heard about. */
 export function untoldBanner() {
   const rows = S.untoldByStudent(); if (!rows.length) return "";
-  return `<div class="note note-warn mb3">New lessons the family has not been told about: ${rows.map(({ student: s, lessons: ls }) => `<a class="b" href="${href(`/students/${s.id}`)}">${esc(s.name)} (${ls.length})</a>`).join(", ")}. Open the student to check the message and send it.</div>`;
+  return `<div class="note note-warn mb3">New or moved lessons the family has not been told about: ${rows.map(({ student: s, lessons: ls }) => `<a class="b" href="${href(`/students/${s.id}`)}">${esc(s.name)} (${ls.length})</a>`).join(", ")}. Open the student to check the message and send it.</div>`;
 }
 /** Move, then (when asked) show the parent's message for review. */
 export function moveWithReview(l, date, time, { note = "", tell = true, onChanged = null } = {}) {
   const from = { date: l.date, time: l.time }; const st = S.student(l.studentId);
   const nl = S.moveLesson(l.id, date, time);
   if (nl?.error) return toast(nl.error, "warn");
-  if (!tell) { toast(`${st.name} moved to ${fmtDate(date)} ${fmt12(time)} · parent not told`); onChanged?.(nl); return nl; }
+  S.markUntoldMove(nl.id); // R26: until the message below is sent or copied, the move shows under "the family has not been told"
+  if (!tell) { toast(`${st.name} moved to ${fmtDate(date)} ${fmt12(time)} · parent not told yet`); onChanged?.(nl); return nl; }
   openReview({ title: "Tell the parent", familyId: st.familyId, event: "reschedule_approved", lessonId: nl.id, sms: true, draft: S.draft("moved", { lesson: nl, from, to: { date, time }, note }), onDone: (how) => { if (how !== "skipped") S.markTold([nl.id]); /* R26: the move message carries the new time */ onChanged?.(nl); } });
   return nl;
 }
