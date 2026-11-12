@@ -1,5 +1,5 @@
 import * as S from "../../store.js";
-import { esc, chip, statusChip, pageHeader, section, coll, empty, field, statusEditorHtml, mountStatusEditor, slotHtml, suggestionList, toast, loc, openMoveLesson, openAttendanceReview } from "../../ui.js";
+import { esc, chip, statusChip, untoldChip, pageHeader, section, coll, empty, field, statusEditorHtml, mountStatusEditor, slotHtml, suggestionList, toast, loc, openMoveLesson, openAttendanceReview } from "../../ui.js";
 import { today, addDays, fmt12, fmtDate, money, isPast } from "../../dates.js";
 import { href, go } from "../../router.js";
 
@@ -13,7 +13,7 @@ export function list(route) {
   if (f === "no-notes") rows = all.filter((l) => l.status === "completed" && l.date >= addDays(T, -14) && S.notesOf(l.id)?.status !== "final").sort((a, b) => b.date.localeCompare(a.date));
   if (f === "past") rows = all.filter((l) => l.date < T).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 40);
   const html = `${pageHeader("Lessons", { back: "/more" })}<div class="row wrap mb3">${FILTERS.map(([k, l]) => `<a class="chip ${f === k ? "chip-brand" : "chip-muted"}" href="${href(`/lessons?filter=${k}`)}">${l}</a>`).join("")}</div>
-    ${rows.length ? `<div class="card list">${rows.map((l) => `<a class="li" href="${href(f === "no-notes" ? `/lessons/${l.id}/notes` : `/lessons/${l.id}`)}"><div><div class="med">${esc(S.studentName(l.studentId))}</div><div class="xs muted">${fmtDate(l.date)} · ${fmt12(l.time)} · ${loc(l.location)}</div></div><div class="row">${f === "no-notes" ? `<span class="btn btn-accent btn-sm">✎ Write notes</span>` : statusChip(l.status)}</div></a>`).join("")}</div>` : empty("Nothing here", f === "no-notes" ? "Every completed lesson of the last two weeks has notes." : "")}`;
+    ${rows.length ? `<div class="card list">${rows.map((l) => `<a class="li" href="${href(f === "no-notes" ? `/lessons/${l.id}/notes` : `/lessons/${l.id}`)}"><div><div class="med">${esc(S.studentName(l.studentId))}</div><div class="xs muted">${fmtDate(l.date)} · ${fmt12(l.time)} · ${loc(l.location)}</div></div><div class="row">${f === "no-notes" ? `<span class="btn btn-accent btn-sm">✎ Write notes</span>` : untoldChip(l) + statusChip(l.status)}</div></a>`).join("")}</div>` : empty("Nothing here", f === "no-notes" ? "Every completed lesson of the last two weeks has notes." : "")}`;
   return { html };
 }
 
@@ -22,6 +22,7 @@ export function detail(route) {
   const s = S.student(l.studentId); const bal = S.balance(s.id); const n = S.notesOf(l.id); const simple = S.labOn("simple_lesson");
   const html = `${pageHeader(s.name, { subtitle: `${fmtDate(l.date, "long")} · ${fmt12(l.time)} · ${l.durationMin} min · ${loc(l.location)}${l.movedFrom ? ` · moved from ${esc(l.movedFrom)}` : ""}`, back: "/today", action: statusChip(l.status) })}
     ${route.query.warning ? `<div class="note note-warn mb3">${esc(route.query.warning)}</div>` : ""}
+    ${untoldChip(l) ? `<div class="note note-warn mb3">${l.untold === "moved" ? "This lesson was moved and the family has not been told the new time yet." : "The family has not been told about this lesson yet."} <a class="b" href="${href(`/students/${s.id}`)}">Tell the family →</a></div>` : ""}
     <div class="card p4 col">
       <div class="row between small"><a class="brand" href="${href(`/students/${s.id}`)}">Student profile →</a>${chip(bal.tone, bal.text)}</div>
       ${l.status === "scheduled" ? `<div class="trans"><button class="btn btn-primary" style="flex:1" data-set="completed">Completed</button><button class="btn btn-outline" style="flex:1" data-set="no_show">No-show</button></div><div class="trans"><button class="btn btn-accent btn-sm" id="move-here">⇄ Move this lesson</button><button class="btn btn-ghost btn-sm" data-set="cancelled">Cancel lesson</button></div>` : ""}

@@ -1,5 +1,5 @@
 import * as S from "../../store.js";
-import { esc, chip, statusChip, section, empty, calendarHtml, mountCalendar, openLessonSheet, openMoveConfirm, openAddLesson, openFindTime, openMoveLesson, openAttendanceReview, untoldBanner, toast, loc } from "../../ui.js";
+import { esc, chip, statusChip, section, empty, calendarHtml, mountCalendar, openLessonSheet, openMoveConfirm, openAddLesson, openFindTime, openMoveLesson, openAttendanceReview, untoldBanner, untoldChip, toast, loc } from "../../ui.js";
 import { today, addDays, fmt12, fmtDate, isPast } from "../../dates.js";
 import { href, go } from "../../router.js";
 
@@ -10,7 +10,7 @@ function lessonCard(l) {
   if (l.status === "scheduled") acts = `<div class="grid2"><button class="btn btn-primary" data-set="completed" data-l="${l.id}">Completed</button><button class="btn btn-outline" data-set="no_show" data-l="${l.id}">No-show</button></div><div class="row"><button class="btn btn-ghost btn-sm" data-move="${l.id}">⇄ Move</button><button class="btn btn-ghost btn-sm" data-set="cancelled" data-l="${l.id}">Cancel</button></div>`;
   else if (l.status === "completed") acts = n?.status === "final" ? `<div class="row"><a class="btn btn-outline btn-sm" href="${href(`/lessons/${l.id}/notes`)}">View notes</a>${l.summarySentAt ? chip("ok", "Summary sent") : ""}</div>` : `<a class="btn btn-accent w" href="${href(`/lessons/${l.id}/notes`)}">✎ Write notes · about 2 min</a>${l.summarySentAt ? "" : `<button class="btn btn-ghost btn-sm" data-send="${l.id}">Send attendance only</button>`}`;
   else if (l.status === "no_show") acts = l.summarySentAt ? chip("ok", "Parent told") : `<button class="btn btn-outline w" data-send="${l.id}">Send attendance</button>`;
-  return `<div class="card lcard"><div class="row between"><a class="who" href="${href(`/lessons/${l.id}`)}">${esc(st.name)}</a>${overdue ? chip("warn", "To mark") : statusChip(l.status)}</div><div class="muted small">${fmt12(l.time)} · ${l.durationMin} min · ${loc(l.location)} · ${chip(bal.tone, bal.text)}${l.planned.length ? `<div class="xs mt1">Plan: ${l.planned.map(esc).join(" · ")}</div>` : ""}</div>${acts}</div>`;
+  return `<div class="card lcard"><div class="row between"><a class="who" href="${href(`/lessons/${l.id}`)}">${esc(st.name)}</a><span class="row wrap" style="justify-content:flex-end">${untoldChip(l)}${overdue ? chip("warn", "To mark") : statusChip(l.status)}</span></div><div class="muted small">${fmt12(l.time)} · ${l.durationMin} min · ${loc(l.location)} · ${chip(bal.tone, bal.text)}${l.planned.length ? `<div class="xs mt1">Plan: ${l.planned.map(esc).join(" · ")}</div>` : ""}</div>${acts}</div>`;
 }
 
 export function render(route) {
