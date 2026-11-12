@@ -308,3 +308,4 @@ body[data-frame="phone"] .sheet .x { min-width: 44px; min-height: 44px; }
 body[data-frame="phone"] .check { min-height: 44px; } body[data-frame="phone"] .check input { width: 22px; height: 22px; flex: none; }
 body[data-frame="phone"] a.xs, body[data-frame="phone"] a.small, body[data-frame="phone"] summary.xs { display: inline-flex; align-items: center; min-height: 40px; }
 body[data-frame="phone"] button.link.xs { min-width: 40px; min-height: 40px; }
+.untold-dot { display: inline-block; width: 7px; height: 7px; border-radius: 999px; background: rgb(var(--warn)); margin-right: 4px; vertical-align: middle; }
